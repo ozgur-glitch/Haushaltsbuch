@@ -1,1 +1,33 @@
-
+{
+  "expo": {
+    "name": "Meine Smartphone App",
+    "slug": "meine-smartphone-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.deinname.meineapp"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "DEINE-EXPO-PROJECT-ID"
+      }
+    }
+  }
+}
