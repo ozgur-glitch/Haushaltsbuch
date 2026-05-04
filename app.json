@@ -4,10 +4,10 @@
     "slug": "haushaltsbuch",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./icon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -15,18 +15,22 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ozce.haushaltsbuch"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.ozce.haushaltsbuch"
     },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "extra": {
       "eas": {
-        "projectId": "2ba69d41-d981-408a-80b3-11d4ef11f23f"
+        "projectId": "2ba69d41-d981-488a-88b3-11d4ef11f23f"
       }
     }
   }
