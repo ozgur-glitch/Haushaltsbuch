@@ -1,32 +1,11 @@
 {
   "expo": {
-    "name": "Meine Smartphone App",
-    "slug": "meine-smartphone-app",
+    "name": "Haushaltsbuch",
+    "slug": "haushaltsbuch",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.deinname.meineapp"
-    },
     "extra": {
       "eas": {
-        "projectId": "DEINE-EXPO-PROJECT-ID"
+        "projectId": "2ba69d41-d981-488a-88b3-11d4ef11f23f"
       }
     }
   }
