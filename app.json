@@ -2,10 +2,11 @@
   "expo": {
     "name": "Haushaltsbuch",
     "slug": "haushaltsbuch",
+    "owner": "ozce",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -25,12 +26,9 @@
       },
       "package": "com.ozce.haushaltsbuch"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "extra": {
       "eas": {
-        "projectId": "2ba69d41-d981-488a-88b3-11d4ef11f23f"
+        "projectId": "2ba69d41-d981-408a-80b3-11d4ef11f23f"
       }
     }
   }
