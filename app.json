@@ -1,35 +1,17 @@
 {
-  "expo": {
-    "name": "Haushaltsbuch",
-    "slug": "haushaltsbuch",
-    "owner": "ozce",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.ozce.haushaltsbuch"
-    },
-    "android": {
-      "package": "com.ozce.haushaltsbuch",
-      "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
-        "backgroundColor": "#ffffff"
-      }
-    },
-    "extra": {
-      "eas": {
-        "projectId": "2ba69d41-d981-408a-80b3-11d4ef11f23f"
-      }
-    }
-  }
+  "name": "haushaltsbuch-app",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "dependencies": {
+    "expo": "~51.0.0",
+    "expo-image-picker": "~15.0.5",
+    "react": "18.2.0",
+    "react-native": "0.74.1",
+    "expo-status-bar": "~1.12.1",
+    "@react-native-async-storage/async-storage": "1.23.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
 }
