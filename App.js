@@ -16,7 +16,7 @@ import {
   Keyboard,
   Share
 } from 'react-native';
-// WICHTIG: Das muss installiert sein (npx expo install @react-native-async-storage/async-storage)
+// WICHTIG: AsyncStorage muss in der package.json stehen
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
@@ -37,31 +37,28 @@ export default function App() {
   const [incomes, setIncomes] = useState([]); 
   const [expandedId, setExpandedId] = useState(null);
   const [importCode, setImportCode] = useState('');
-  const [isLoaded, setIsLoaded] = useState(false); // Neu: Damit wir nicht leer speichern
+  const [isLoaded, setIsLoaded] = useState(false); 
 
   const endDateRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // --- AUTOMATISCHES LADEN & SPEICHERN (AsyncStorage) ---
-
-  // 1. Beim Start der App laden
+  // --- PERSISTENZ (SPEICHERN & LADEN) ---
   useEffect(() => {
-    const loadPersistedData = async () => {
+    const loadData = async () => {
       try {
-        const savedClaims = await AsyncStorage.getItem('@claims_storage');
-        const savedIncomes = await AsyncStorage.getItem('@incomes_storage');
-        const savedTheme = await AsyncStorage.getItem('@theme_storage');
+        const savedClaims = await AsyncStorage.getItem('@claims_data');
+        const savedIncomes = await AsyncStorage.getItem('@incomes_data');
+        const savedTheme = await AsyncStorage.getItem('@theme_pref');
 
-        if (savedClaims !== null) {
+        if (savedClaims) {
           const parsed = JSON.parse(savedClaims);
-          // Wichtig: Date-Objekte wiederherstellen
           const restored = parsed.map(c => ({
             ...c,
             dates: c.dates.map(d => ({ ...d, dateObj: new Date(d.dateObj) }))
           }));
           setClaims(restored);
         }
-        if (savedIncomes !== null) {
+        if (savedIncomes) {
           const parsedInc = JSON.parse(savedIncomes);
           const restoredInc = parsedInc.map(i => ({
             ...i,
@@ -69,31 +66,23 @@ export default function App() {
           }));
           setIncomes(restoredInc);
         }
-        if (savedTheme !== null) {
-          setIsDarkMode(savedTheme === 'dark');
-        }
-      } catch (e) {
-        console.error("Ladefehler", e);
-      } finally {
-        setIsLoaded(true); // Signalisieren, dass das Laden fertig ist
-      }
+        if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      } catch (e) { console.error("Load Error", e); }
+      finally { setIsLoaded(true); }
     };
-    loadPersistedData();
+    loadData();
   }, []);
 
-  // 2. Bei jeder Änderung speichern
   useEffect(() => {
-    if (isLoaded) { // Nur speichern, wenn wir vorher fertig geladen haben!
-      const saveToStorage = async () => {
+    if (isLoaded) {
+      const saveData = async () => {
         try {
-          await AsyncStorage.setItem('@claims_storage', JSON.stringify(claims));
-          await AsyncStorage.setItem('@incomes_storage', JSON.stringify(incomes));
-          await AsyncStorage.setItem('@theme_storage', isDarkMode ? 'dark' : 'light');
-        } catch (e) {
-          console.error("Speicherfehler", e);
-        }
+          await AsyncStorage.setItem('@claims_data', JSON.stringify(claims));
+          await AsyncStorage.setItem('@incomes_data', JSON.stringify(incomes));
+          await AsyncStorage.setItem('@theme_pref', isDarkMode ? 'dark' : 'light');
+        } catch (e) { console.error("Save Error", e); }
       };
-      saveToStorage();
+      saveData();
     }
   }, [claims, incomes, isDarkMode, isLoaded]);
 
@@ -113,13 +102,8 @@ export default function App() {
   const handleExport = async () => {
     try {
       const data = JSON.stringify({ claims, incomes });
-      await Share.share({
-        message: data,
-        title: 'Finanz App Backup'
-      });
-    } catch (error) {
-      Alert.alert("Fehler", "Export fehlgeschlagen");
-    }
+      await Share.share({ message: data, title: 'Finanz App Backup' });
+    } catch (error) { Alert.alert("Fehler", "Export fehlgeschlagen"); }
   };
 
   const handleImport = () => {
@@ -134,18 +118,13 @@ export default function App() {
           ...i,
           dates: i.dates.map(d => ({ ...d, dateObj: new Date(d.dateObj) }))
         }));
-        
         setClaims(restoredClaims);
         setIncomes(restoredIncomes);
         setImportCode('');
         Alert.alert("Erfolg", "Backup erfolgreich importiert!");
         setActiveTab('list');
-      } else {
-        throw new Error();
-      }
-    } catch (e) {
-      Alert.alert("Fehler", "Ungültiger Backup-Code.");
-    }
+      } else { throw new Error(); }
+    } catch (e) { Alert.alert("Fehler", "Ungültiger Backup-Code."); }
   };
 
   // --- HILFSFUNKTIONEN ---
@@ -159,11 +138,8 @@ export default function App() {
     }
     setter(formatted);
     if (cleaned.length === 8) {
-      if (isStart && interval !== 0 && activeTab === 'add') {
-        endDateRef.current?.focus();
-      } else {
-        Keyboard.dismiss();
-      }
+      if (isStart && interval !== 0 && activeTab === 'add') endDateRef.current?.focus();
+      else Keyboard.dismiss();
     }
   };
 
@@ -199,10 +175,8 @@ export default function App() {
       });
     });
     if (currentMonthClaims.length === 0) return 'default';
-    const hasOverdue = currentMonthClaims.some(d => isOverdue(d.dateObj) && !d.completed);
-    if (hasOverdue) return 'overdue';
-    const allCompleted = currentMonthClaims.every(d => d.completed);
-    if (allCompleted) return 'completed';
+    if (currentMonthClaims.some(d => isOverdue(d.dateObj) && !d.completed)) return 'overdue';
+    if (currentMonthClaims.every(d => d.completed)) return 'completed';
     return 'pending';
   }, [claims]);
 
@@ -214,9 +188,7 @@ export default function App() {
           Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
-    } else {
-      pulseAnim.setValue(1);
-    }
+    } else { pulseAnim.setValue(1); }
   }, [dashboardStatus]);
 
   const getDashboardColor = () => {
@@ -261,52 +233,39 @@ export default function App() {
 
   const filteredClaims = useMemo(() => {
     if (!searchQuery) return claims;
-    return claims.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (c.note && c.note.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    return claims.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.note && c.note.toLowerCase().includes(searchQuery.toLowerCase())));
   }, [claims, searchQuery]);
 
   const filteredIncomes = useMemo(() => {
     if (!searchQuery) return incomes;
-    return incomes.filter(i => 
-      i.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    return incomes.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [incomes, searchQuery]);
 
   const saveEntry = () => {
     const parsedStart = parseDate(startDate);
     const parsedEnd = parseDate(endDate);
-    
     if (activeTab === 'add') {
         if (!name || !amount || !parsedStart || (interval !== 0 && !parsedEnd)) {
-            Alert.alert("Fehler", "Bitte alle Pflichtfelder ausfüllen.");
-            return;
+            Alert.alert("Fehler", "Bitte Pflichtfelder ausfüllen."); return;
         }
     } else {
         if (!name || !amount || !parsedStart) {
-            Alert.alert("Fehler", "Bitte alle Pflichtfelder ausfüllen.");
-            return;
+            Alert.alert("Fehler", "Bitte Pflichtfelder ausfüllen."); return;
         }
     }
-
     const currentInterval = activeTab === 'income' ? 0 : interval;
     const newEntry = {
       id: Date.now().toString(),
-      name,
-      amount: parseFloat(amount).toFixed(2),
-      note, 
+      name, amount: parseFloat(amount).toFixed(2), note, 
       image: selectedImage,
       interval: currentInterval === 0 ? 'Einmalig' : (currentInterval === 1 ? 'Monatlich' : `Alle ${currentInterval} Monate`),
       dates: calculateRangeDates(startDate, activeTab === 'income' ? startDate : endDate, currentInterval, parseFloat(amount).toFixed(2))
     };
-
     if (activeTab === 'add') {
       setClaims(prev => sortClaims([newEntry, ...prev]));
     } else {
       setIncomes(prev => [newEntry, ...prev]);
     }
-
     setName(''); setAmount(''); setStartDate(''); setEndDate(''); setNote(''); setSelectedImage(null);
     setActiveTab('list');
   };
@@ -323,35 +282,26 @@ export default function App() {
     });
   };
 
+  // --- SUMMEN ---
   const currentMonthSum = useMemo(() => {
     const now = new Date();
     let sum = 0;
-    claims.forEach(c => {
-      c.dates.forEach(d => {
-        if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) {
-          sum += parseFloat(d.value);
-        }
-      });
-    });
+    claims.forEach(c => c.dates.forEach(d => {
+      if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) sum += parseFloat(d.value);
+    }));
     return sum.toFixed(2);
   }, [claims]);
 
   const currentMonthIncomeSum = useMemo(() => {
     const now = new Date();
     let sum = 0;
-    incomes.forEach(i => {
-      i.dates.forEach(d => {
-        if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) {
-          sum += parseFloat(d.value);
-        }
-      });
-    });
+    incomes.forEach(i => i.dates.forEach(d => {
+      if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) sum += parseFloat(d.value);
+    }));
     return sum.toFixed(2);
   }, [incomes]);
 
-  const balance = useMemo(() => {
-    return (parseFloat(currentMonthIncomeSum) - parseFloat(currentMonthSum)).toFixed(2);
-  }, [currentMonthSum, currentMonthIncomeSum]);
+  const balance = (parseFloat(currentMonthIncomeSum) - parseFloat(currentMonthSum)).toFixed(2);
 
   const yearlyStats = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -359,17 +309,14 @@ export default function App() {
     const summary = {};
     claims.forEach(claim => {
       let claimYearSum = 0;
-      claim.dates.forEach(d => {
-        if (d.dateObj.getFullYear() === currentYear) claimYearSum += parseFloat(d.value);
-      });
+      claim.dates.forEach(d => { if (d.dateObj.getFullYear() === currentYear) claimYearSum += parseFloat(d.value); });
       if (claimYearSum > 0) {
         summary[claim.name] = (summary[claim.name] || 0) + claimYearSum;
         totalYearSum += claimYearSum;
       }
     });
     return Object.keys(summary).map(name => ({
-      name,
-      sum: summary[name],
+      name, sum: summary[name],
       percent: totalYearSum > 0 ? parseFloat((summary[name] / totalYearSum * 100).toFixed(1)) : 0
     })).sort((a, b) => b.sum - a.sum);
   }, [claims]);
@@ -380,17 +327,14 @@ export default function App() {
     const summary = {};
     incomes.forEach(income => {
       let incomeYearSum = 0;
-      income.dates.forEach(d => {
-        if (d.dateObj.getFullYear() === currentYear) incomeYearSum += parseFloat(d.value);
-      });
+      income.dates.forEach(d => { if (d.dateObj.getFullYear() === currentYear) incomeYearSum += parseFloat(d.value); });
       if (incomeYearSum > 0) {
         summary[income.name] = (summary[income.name] || 0) + incomeYearSum;
         totalYearSum += incomeYearSum;
       }
     });
     return Object.keys(summary).map(name => ({
-      name,
-      sum: summary[name],
+      name, sum: summary[name],
       percent: totalYearSum > 0 ? parseFloat((summary[name] / totalYearSum * 100).toFixed(1)) : 0
     })).sort((a, b) => b.sum - a.sum);
   }, [incomes]);
@@ -399,7 +343,6 @@ export default function App() {
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle="light-content" />
-      
       <View style={[styles.topGradient, isDarkMode && { backgroundColor: '#1C1C1E' }]}>
         <SafeAreaView>
           <TouchableOpacity style={styles.themeToggle} onPress={() => setIsDarkMode(!isDarkMode)}>
@@ -439,10 +382,10 @@ export default function App() {
 
       <View style={styles.contentArea}>
         <View style={[styles.tabBar, { backgroundColor: theme.tabBar }]}>
-          {['add', 'income', 'list', 'stats', 'backup'].map((tab) => (
-            <TouchableOpacity key={tab} style={[styles.tabItem, activeTab === tab && styles.tabActive]} onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'add' ? 'Ausgaben' : tab === 'income' ? 'Einnahmen' : tab === 'list' ? 'Liste' : tab === 'stats' ? 'Analyse' : 'Backup'}
+          {['add', 'income', 'list', 'stats', 'backup'].map((t) => (
+            <TouchableOpacity key={t} style={[styles.tabItem, activeTab === t && styles.tabActive]} onPress={() => setActiveTab(t)}>
+              <Text style={[styles.tabText, activeTab === t && styles.tabTextActive]}>
+                {t==='add'?'Ausgaben':t==='income'?'Einnahmen':t==='list'?'Liste':t==='stats'?'Analyse':'Backup'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -455,7 +398,7 @@ export default function App() {
               <View style={[styles.inputGroup, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
                 <TextInput style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]} placeholder="Name" value={name} onChangeText={setName} placeholderTextColor={theme.subText} />
                 <TextInput style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]} placeholder="Betrag (€)" keyboardType="numeric" value={amount} onChangeText={setAmount} placeholderTextColor={theme.subText} />
-                <TextInput style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]} placeholder={activeTab === 'income' ? "Datum (TT.MM.JJJJ)" : "Start (TT.MM.JJJJ)"} keyboardType="numeric" value={startDate} onChangeText={(t) => handleDateInput(t, setStartDate, true)} placeholderTextColor={theme.subText} />
+                <TextInput style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]} placeholder={activeTab==='income'?"Datum (TT.MM.JJJJ)":"Start (TT.MM.JJJJ)"} keyboardType="numeric" value={startDate} onChangeText={(t) => handleDateInput(t, setStartDate, true)} placeholderTextColor={theme.subText} />
                 {activeTab === 'add' && interval !== 0 && (
                   <TextInput ref={endDateRef} style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]} placeholder="Ende (TT.MM.JJJJ)" keyboardType="numeric" value={endDate} onChangeText={(t) => handleDateInput(t, setEndDate)} placeholderTextColor={theme.subText} />
                 )}
@@ -464,13 +407,13 @@ export default function App() {
               {activeTab === 'add' && (
                 <View style={styles.segmentContainer}>
                   {[0, 1, 3, 6, 12].map((m) => (
-                    <TouchableOpacity key={m} style={[styles.segment, { backgroundColor: isDarkMode ? '#2C2C2E' : '#E5E5EA' }, interval === m && (isDarkMode ? { backgroundColor: '#0A84FF' } : styles.segmentActive)]} onPress={() => setInterval(m)}>
+                    <TouchableOpacity key={m} style={[styles.segment, { backgroundColor: isDarkMode ? '#2C2C2E' : '#E5E5EA' }, interval === m && { backgroundColor: '#0A84FF' }]} onPress={() => setInterval(m)}>
                       <Text style={[styles.segmentText, { color: theme.subText }, interval === m && styles.segmentTextActive]}>{m === 0 ? "1X" : `${m}M`}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
-              <TouchableOpacity style={[styles.addBtn, isDarkMode && { backgroundColor: activeTab === 'add' ? '#0A84FF' : '#28A745' }]} onPress={saveEntry}>
+              <TouchableOpacity style={[styles.addBtn, isDarkMode && { backgroundColor: activeTab==='add'?'#0A84FF':'#28A745' }]} onPress={saveEntry}>
                 <Text style={styles.addBtnText}>Speichern</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -480,54 +423,65 @@ export default function App() {
             <View style={{ flex: 1 }}>
               <TextInput style={[styles.searchInput, { backgroundColor: theme.inputBg, color: theme.text, margin: 15 }]} placeholder="Suchen..." value={searchQuery} onChangeText={setSearchQuery} placeholderTextColor={theme.subText} />
               <ScrollView>
-                {/* Hier deine Card-Mapping Logik aus dem Original... */}
+                <View style={{paddingHorizontal: 20}}>
                 {filteredIncomes.map(item => (
-                   <View key={item.id} style={[styles.card, { backgroundColor: theme.card, marginHorizontal: 20 }]}>
+                   <View key={item.id} style={[styles.card, { backgroundColor: theme.card }]}>
                       <View style={styles.cardMain}>
-                         <Text style={{flex: 1, color: theme.text, fontWeight: 'bold'}}>{item.name}</Text>
-                         <Text style={{color: '#28A745'}}>+{item.amount} €</Text>
-                         <TouchableOpacity onPress={() => setIncomes(incomes.filter(i => i.id !== item.id))}><Text> 🗑️</Text></TouchableOpacity>
+                         <View style={[styles.cardIconBox, { backgroundColor: '#E8F5E9' }]}><Text>💰</Text></View>
+                         <View style={{flex:1}}><Text style={[styles.cardName,{color:theme.text}]}>{item.name}</Text></View>
+                         <Text style={{color: '#28A745', fontWeight:'bold'}}>+{item.amount} €</Text>
+                         <TouchableOpacity onPress={() => setIncomes(incomes.filter(i => i.id !== item.id))}><Text>  🗑️</Text></TouchableOpacity>
                       </View>
                    </View>
                 ))}
-                {filteredClaims.map(item => (
-                   <View key={item.id} style={[styles.card, { backgroundColor: theme.card, marginHorizontal: 20, marginTop: 10 }]}>
+                {filteredClaims.map(item => {
+                    const overdue = hasOverdueItems(item);
+                    return (
+                   <View key={item.id} style={[styles.card, { backgroundColor: theme.card, marginTop: 10 }]}>
                       <TouchableOpacity style={styles.cardMain} onPress={() => setExpandedId(expandedId === item.id ? null : item.id)}>
-                         <Text style={{flex: 1, color: theme.text, fontWeight: 'bold'}}>{item.name}</Text>
-                         <Text style={{color: '#FF3B30'}}>-{item.amount} €</Text>
-                         <TouchableOpacity onPress={() => setClaims(claims.filter(c => c.id !== item.id))}><Text> 🗑️</Text></TouchableOpacity>
+                         <View style={[styles.cardIconBox, { backgroundColor: overdue ? '#FFF0F0' : '#F0F4FF' }]}><Text>{overdue?'⚠️':'📅'}</Text></View>
+                         <View style={{flex:1}}><Text style={[styles.cardName,{color:theme.text}]}>{item.name}</Text></View>
+                         <Text style={{color: '#FF3B30', fontWeight:'bold'}}>-{item.amount} €</Text>
+                         <TouchableOpacity onPress={() => setClaims(claims.filter(c => c.id !== item.id))}><Text>  🗑️</Text></TouchableOpacity>
                       </TouchableOpacity>
-                      {expandedId === item.id && item.dates.map(d => (
-                        <TouchableOpacity key={d.id} style={styles.detailRow} onPress={() => toggleDateStatus(item.id, d.id)}>
-                          <Text style={[styles.detailDate, {color: theme.text}, d.completed && styles.strike]}>{d.dateString}</Text>
-                          <Text style={{color: theme.text}}>{d.completed ? '✅' : '⭕'}</Text>
-                        </TouchableOpacity>
-                      ))}
+                      {expandedId === item.id && (
+                        <View style={{backgroundColor: theme.detailBg, padding:10, borderBottomLeftRadius:15, borderBottomRightRadius:15}}>
+                          {item.dates.map(d => (
+                            <TouchableOpacity key={d.id} style={styles.detailRow} onPress={() => toggleDateStatus(item.id, d.id)}>
+                              <Text style={[styles.detailDate, {color: theme.text}, d.completed && styles.strike]}>{d.dateString}</Text>
+                              <Text style={{color: theme.text}}>{d.completed ? '✅' : '⭕'}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                    </View>
-                ))}
+                )})}
+                </View>
+                <View style={{height:100}}/>
               </ScrollView>
             </View>
           )}
 
           {activeTab === 'stats' && (
             <ScrollView style={{padding: 20}}>
-               <Text style={{color: theme.text, fontSize: 18, fontWeight: 'bold'}}>Analyse {new Date().getFullYear()}</Text>
+               <Text style={{color: theme.text, fontSize: 18, fontWeight: 'bold', marginBottom: 20}}>Analyse {new Date().getFullYear()}</Text>
                {yearlyStats.map(item => (
-                 <View key={item.name} style={{marginVertical: 10}}>
-                   <Text style={{color: theme.text}}>{item.name} ({item.percent}%)</Text>
-                   <View style={{height: 10, backgroundColor: '#EEE', borderRadius: 5}}>
-                     <View style={{width: `${item.percent}%`, height: 10, backgroundColor: '#FF3B30', borderRadius: 5}} />
+                 <View key={item.name} style={{marginBottom: 15}}>
+                   <View style={{flexDirection:'row', justifyContent:'space-between'}}><Text style={{color: theme.text}}>{item.name}</Text><Text style={{color: theme.text}}>{item.percent}%</Text></View>
+                   <View style={{height: 8, backgroundColor: isDarkMode?'#333':'#EEE', borderRadius: 4, marginTop: 5}}>
+                     <View style={{width: `${item.percent}%`, height: 8, backgroundColor: '#FF3B30', borderRadius: 4}} />
                    </View>
                  </View>
                ))}
+               <View style={{height: 100}}/>
             </ScrollView>
           )}
 
           {activeTab === 'backup' && (
             <ScrollView contentContainerStyle={styles.formContainer}>
-              <TouchableOpacity style={styles.addBtn} onPress={handleExport}><Text style={styles.addBtnText}>Exportieren</Text></TouchableOpacity>
-              <TextInput style={[styles.input, {backgroundColor: theme.inputBg, color: theme.text, height: 100, marginTop: 20}]} multiline placeholder="Backup-Code einfügen" value={importCode} onChangeText={setImportCode} />
-              <TouchableOpacity style={[styles.addBtn, {backgroundColor: '#28A745', marginTop: 10}]} onPress={handleImport}><Text style={styles.addBtnText}>Importieren</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.addBtn} onPress={handleExport}><Text style={styles.addBtnText}>Daten Exportieren</Text></TouchableOpacity>
+              <TextInput style={[styles.input, {backgroundColor: theme.inputBg, color: theme.text, height: 100, marginTop: 20, textAlignVertical:'top', padding:10}]} multiline placeholder="Backup-Code hier einfügen" value={importCode} onChangeText={setImportCode} />
+              <TouchableOpacity style={[styles.addBtn, {backgroundColor: '#28A745', marginTop: 10}]} onPress={handleImport}><Text style={styles.addBtnText}>Daten Importieren</Text></TouchableOpacity>
             </ScrollView>
           )}
         </KeyboardAvoidingView>
@@ -538,7 +492,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topGradient: { borderBottomLeftRadius: 40, borderBottomRightRadius: 40, paddingBottom: 20, backgroundColor: '#0A4DAB' },
+  topGradient: { borderBottomLeftRadius: 40, borderBottomRightRadius: 40, paddingBottom: 25, backgroundColor: '#0A4DAB' },
   themeToggle: { alignSelf: 'flex-end', marginRight: 25, marginTop: 10 },
   dashboardHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   sideCircleContainer: { alignItems: 'center', width: width * 0.25 },
@@ -563,14 +517,17 @@ const styles = StyleSheet.create({
   input: { height: 40, paddingHorizontal: 12, borderBottomWidth: 1 },
   segmentContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
   segment: { paddingVertical: 8, borderRadius: 10, width: '18%', alignItems: 'center' },
-  segmentActive: { backgroundColor: '#0A4DAB' },
   segmentText: { fontSize: 11, fontWeight: 'bold' },
   segmentTextActive: { color: '#FFF' },
   addBtn: { backgroundColor: '#0A4DAB', height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   addBtnText: { color: '#FFF', fontWeight: 'bold' },
   searchInput: { height: 40, borderRadius: 12, paddingHorizontal: 15 },
-  card: { borderRadius: 15, padding: 10, marginBottom: 5 },
+  card: { borderRadius: 15, padding: 12, marginBottom: 5, elevation: 2 },
   cardMain: { flexDirection: 'row', alignItems: 'center' },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 10, borderTopWidth: 1, borderColor: '#EEE' },
+  cardIconBox: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  cardName: { fontSize: 15, fontWeight: 'bold' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderColor: '#EEE' },
+  detailDate: { fontSize: 13 },
   strike: { textDecorationLine: 'line-through', color: '#CCC' }
 });
+
