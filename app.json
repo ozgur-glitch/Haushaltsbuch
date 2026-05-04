@@ -7,6 +7,11 @@
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -15,7 +20,11 @@
       "bundleIdentifier": "com.ozce.haushaltsbuch"
     },
     "android": {
-      "package": "com.ozce.haushaltsbuch"
+      "package": "com.ozce.haushaltsbuch",
+      "adaptiveIcon": {
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "extra": {
       "eas": {
