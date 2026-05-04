@@ -1,17 +1,8 @@
 {
-  "name": "meine-finanz-app",
-  "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
   "dependencies": {
     "expo": "~51.0.0",
-    "expo-image-picker": "~15.0.5",
-    "react": "18.2.0",
-    "react-native": "0.74.1",
-    "expo-status-bar": "~1.12.1",
-    "@react-native-async-storage/async-storage": "1.23.1"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.20.0"
-  },
-  "private": true
+    "expo-image-picker": "~15.0.7",
+    "react-native": "0.74.6",
+    "react": "18.2.0"
+  }
 }
