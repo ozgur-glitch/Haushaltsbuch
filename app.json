@@ -1,8 +1,9 @@
 {
   "expo": {
     "name": "Haushaltsbuch",
-    "slug": "haushaltsbuch",
+    "slug": "haushaltsbuch-projekt",
     "version": "1.0.0",
-    "sdkVersion": "51.0.0"
+    "sdkVersion": "51.0.0",
+    "platforms": ["ios", "android", "web"]
   }
 }
