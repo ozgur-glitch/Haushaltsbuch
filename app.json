@@ -3,9 +3,25 @@
     "name": "Haushaltsbuch",
     "slug": "haushaltsbuch",
     "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.ozce.haushaltsbuch"
+    },
     "extra": {
       "eas": {
-        "projectId": "2ba69d41-d981-488a-88b3-11d4ef11f23f"
+        "projectId": "2ba69d41-d981-408a-80b3-11d4ef11f23f"
       }
     }
   }
