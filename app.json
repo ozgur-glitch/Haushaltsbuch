@@ -4,20 +4,32 @@
     "slug": "haushaltsbuch",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#ffffff"
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A4DAB"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oc2003.haushaltsbuch"
+    },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#0A4DAB"
       },
-      "package": "com.ozce.haushaltsbuch"
-    }
+      "package": "com.oc2003.haushaltsbuch"
+    },
+    "web": {
+      "favicon": "./icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8e45a9a6-38cf-4156-b23d-cdc7b6ec92f0"
+      }
+    },
+    "owner": "oc2003"
   }
 }
