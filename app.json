@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Haushaltsbuch",
@@ -16,7 +17,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "DEINE-PROJEKT-ID"
+        "projectId": "2ba69d41-d981-408a-80b3-11d4ef11f23f"
       }
     }
   }
