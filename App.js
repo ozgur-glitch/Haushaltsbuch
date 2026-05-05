@@ -83,7 +83,7 @@ export default function App() {
     }
   };
 
-  // --- LOGIK ---
+  // --- HILFSFUNKTIONEN ---
   const handleDateInput = (text, setter, isStart = false) => {
     const cleaned = text.replace(/\D/g, '');
     let formatted = cleaned;
@@ -120,6 +120,7 @@ export default function App() {
     return dateObj <= today;
   };
 
+  // --- DASHBOARD STATUS ---
   const dashboardStatus = useMemo(() => {
     const now = new Date();
     const currentMonthClaims = [];
@@ -156,6 +157,7 @@ export default function App() {
     }
   };
 
+  // --- BERECHNUNGEN ---
   const calculateRangeDates = (startStr, endStr, months, val) => {
     let dates = [];
     let current = parseDate(startStr);
@@ -197,13 +199,7 @@ export default function App() {
     return incomes.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [incomes, searchQuery]);
 
-  const getDynamicColor = (percent, isIncome = false) => {
-    if (isIncome) return '#28A745'; 
-    if (percent <= 33) return '#28A745'; 
-    if (percent <= 67) return '#FF9500'; 
-    return '#DC3545'; 
-  };
-
+  // --- ACTIONS ---
   const saveEntry = () => {
     const parsedStart = parseDate(startDate);
     const parsedEnd = parseDate(endDate);
@@ -268,6 +264,7 @@ export default function App() {
     });
   };
 
+  // --- STATS ---
   const currentMonthSum = useMemo(() => {
     const now = new Date();
     let sum = 0;
@@ -329,6 +326,7 @@ export default function App() {
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle="light-content" />
+      
       <View style={[styles.topGradient, isDarkMode && { backgroundColor: '#1C1C1E' }]}>
         <SafeAreaView>
           <TouchableOpacity style={styles.themeToggle} onPress={() => setIsDarkMode(!isDarkMode)}>
@@ -470,8 +468,8 @@ export default function App() {
                <View style={{height: 20}} /><View style={styles.statsHeaderBox}><Text style={[styles.miniLabel, { color: '#DC3545', marginBottom: 15 }]}>AUSGABEN</Text></View>
                {yearlyStats.map((item, idx) => (
                  <View key={idx} style={[styles.yearlyCard, { backgroundColor: theme.card }]}>
-                   <View style={styles.yearlyInfo}><Text style={[styles.yearlyName, { color: theme.text }]}>{item.name}</Text><Text style={[styles.yearlyPercent, { color: getDynamicColor(item.percent) }]}>{item.percent}%</Text></View>
-                   <View style={[styles.progressBg, { backgroundColor: isDarkMode ? '#2C2C2E' : '#F0F0F0' }]}><View style={[styles.progressFill, { width: `${item.percent}%`, backgroundColor: getDynamicColor(item.percent) }]} /></View>
+                   <View style={styles.yearlyInfo}><Text style={[styles.yearlyName, { color: theme.text }]}>{item.name}</Text><Text style={[styles.yearlyPercent, { color: (item.percent > 60 ? '#DC3545' : '#FF9500') }]}>{item.percent}%</Text></View>
+                   <View style={[styles.progressBg, { backgroundColor: isDarkMode ? '#2C2C2E' : '#F0F0F0' }]}><View style={[styles.progressFill, { width: `${item.percent}%`, backgroundColor: (item.percent > 60 ? '#DC3545' : '#FF9500') }]} /></View>
                    <Text style={[styles.yearlySumSub, { color: theme.subText }]}>{item.sum.toFixed(2)} € gesamt</Text>
                  </View>
                ))}
