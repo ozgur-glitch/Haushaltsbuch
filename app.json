@@ -1,19 +1,11 @@
 {
   "expo": {
     "name": "Haushaltsbuch",
-    "slug": "haushaltsbuch",
-    "version": "1.0.0",
-    "orientation": "portrait",
     "icon": "./icon.png",
-    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./icon.png",
+      "image": "./splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A4DAB"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.oc2003.haushaltsbuch"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,15 +13,6 @@
         "backgroundColor": "#0A4DAB"
       },
       "package": "com.oc2003.haushaltsbuch"
-    },
-    "web": {
-      "favicon": "./icon.png"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "8e45a9a6-38cf-4156-b23d-cdc7b6ec92f0"
-      }
-    },
-    "owner": "oc2003"
+    }
   }
 }
