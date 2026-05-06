@@ -1,7 +1,12 @@
 {
   "expo": {
     "name": "Haushaltsbuch",
+    "slug": "haushaltsbuch",
+    "version": "1.0.0",
+    "sdkVersion": "51.0.0",
+    "orientation": "portrait",
     "icon": "./icon.png",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./splash.png",
       "resizeMode": "contain",
@@ -13,6 +18,11 @@
         "backgroundColor": "#0A4DAB"
       },
       "package": "com.oc2003.haushaltsbuch"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8e45a9a6-38cf-4156-b23d-cdc7b6ec92f8"
+      }
     }
   }
 }
