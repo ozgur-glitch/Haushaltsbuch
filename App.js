@@ -340,25 +340,52 @@ export default function App() {
     saveData(sorted, incomes);
   };
 
-  // --- ÜBERARBEITETE BILANZ (SUMME ALLER TERMINE) ---
+  // --- KORRIGIERTE BILANZ (MONATLICHER DURCHSCHNITT) ---
   const currentMonthSum = useMemo(() => {
-    let sum = 0;
+    let totalMonthlyAverage = 0;
     claims.forEach(c => {
-      c.dates.forEach(d => {
-        sum += parseFloat(d.value);
-      });
+      if (!c.dates || c.dates.length === 0) return;
+      
+      const totalClaimValue = c.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
+      const start = c.dates[0].dateObj;
+      const end = c.dates[c.dates.length - 1].dateObj;
+      
+      // Berechnung der Monatsdifferenz (Laufzeit)
+      let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+      
+      if (c.interval === 'Einmalig') {
+        const now = new Date();
+        if (start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear()) {
+          totalMonthlyAverage += totalClaimValue;
+        }
+      } else {
+        totalMonthlyAverage += totalClaimValue / diffMonths;
+      }
     });
-    return sum.toFixed(2);
+    return totalMonthlyAverage.toFixed(2);
   }, [claims]);
 
   const currentMonthIncomeSum = useMemo(() => {
-    let sum = 0;
+    let totalMonthlyAverage = 0;
     incomes.forEach(i => {
-      i.dates.forEach(d => {
-        sum += parseFloat(d.value);
-      });
+      if (!i.dates || i.dates.length === 0) return;
+      
+      const totalIncomeValue = i.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
+      const start = i.dates[0].dateObj;
+      const end = i.dates[i.dates.length - 1].dateObj;
+      
+      let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+      
+      if (i.interval === 'Einmalig') {
+        const now = new Date();
+        if (start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear()) {
+          totalMonthlyAverage += totalIncomeValue;
+        }
+      } else {
+        totalMonthlyAverage += totalIncomeValue / diffMonths;
+      }
     });
-    return sum.toFixed(2);
+    return totalMonthlyAverage.toFixed(2);
   }, [incomes]);
 
   const balance = useMemo(() => {
