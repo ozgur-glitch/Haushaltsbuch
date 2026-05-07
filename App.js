@@ -340,49 +340,55 @@ export default function App() {
     saveData(sorted, incomes);
   };
 
-  // --- KORRIGIERTE BILANZ (MONATLICHER DURCHSCHNITT) ---
+  // --- KORRIGIERTE LOGIK: MONATLICHER DURCHSCHNITT NUR BEI RELEVANZ IM AKTUELLEN MONAT ---
   const currentMonthSum = useMemo(() => {
+    const now = new Date();
     let totalMonthlyAverage = 0;
+
     claims.forEach(c => {
       if (!c.dates || c.dates.length === 0) return;
-      
-      const totalClaimValue = c.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
-      const start = c.dates[0].dateObj;
-      const end = c.dates[c.dates.length - 1].dateObj;
-      
-      // Berechnung der Monatsdifferenz (Laufzeit)
-      let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-      
-      if (c.interval === 'Einmalig') {
-        const now = new Date();
-        if (start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear()) {
-          totalMonthlyAverage += totalClaimValue;
-        }
-      } else {
-        totalMonthlyAverage += totalClaimValue / diffMonths;
+
+      // Prüfen, ob in diesem Monat ein Termin für diesen Eintrag anfällt
+      const hasDateInCurrentMonth = c.dates.some(d => 
+        d.dateObj.getMonth() === now.getMonth() && 
+        d.dateObj.getFullYear() === now.getFullYear()
+      );
+
+      if (hasDateInCurrentMonth) {
+        const totalClaimValue = c.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
+        const start = c.dates[0].dateObj;
+        const end = c.dates[c.dates.length - 1].dateObj;
+
+        // Berechnung der Laufzeit in Monaten (mindestens 1 Monat)
+        const diffMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+        
+        // Wenn Intervall 0 (Einmalig), dann voller Betrag, sonst Durchschnitt über die Laufzeit
+        totalMonthlyAverage += (c.interval === 'Einmalig') ? totalClaimValue : (totalClaimValue / diffMonths);
       }
     });
     return totalMonthlyAverage.toFixed(2);
   }, [claims]);
 
   const currentMonthIncomeSum = useMemo(() => {
+    const now = new Date();
     let totalMonthlyAverage = 0;
+
     incomes.forEach(i => {
       if (!i.dates || i.dates.length === 0) return;
-      
-      const totalIncomeValue = i.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
-      const start = i.dates[0].dateObj;
-      const end = i.dates[i.dates.length - 1].dateObj;
-      
-      let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-      
-      if (i.interval === 'Einmalig') {
-        const now = new Date();
-        if (start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear()) {
-          totalMonthlyAverage += totalIncomeValue;
-        }
-      } else {
-        totalMonthlyAverage += totalIncomeValue / diffMonths;
+
+      const hasDateInCurrentMonth = i.dates.some(d => 
+        d.dateObj.getMonth() === now.getMonth() && 
+        d.dateObj.getFullYear() === now.getFullYear()
+      );
+
+      if (hasDateInCurrentMonth) {
+        const totalIncomeValue = i.dates.reduce((sum, d) => sum + parseFloat(d.value), 0);
+        const start = i.dates[0].dateObj;
+        const end = i.dates[i.dates.length - 1].dateObj;
+
+        const diffMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
+        
+        totalMonthlyAverage += (i.interval === 'Einmalig') ? totalIncomeValue : (totalIncomeValue / diffMonths);
       }
     });
     return totalMonthlyAverage.toFixed(2);
