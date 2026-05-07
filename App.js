@@ -16,6 +16,7 @@ import {
   Keyboard,
   Share
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +38,44 @@ export default function App() {
   const endDateRef = useRef(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // --- PERSISTENZ LOGIK ---
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const savedClaims = await AsyncStorage.getItem('@claims_v1');
+      const savedIncomes = await AsyncStorage.getItem('@incomes_v1');
+      const savedTheme = await AsyncStorage.getItem('@theme_v1');
+      
+      if (savedClaims) {
+        setClaims(JSON.parse(savedClaims).map(c => ({
+          ...c,
+          dates: c.dates.map(d => ({ ...d, dateObj: new Date(d.dateObj) }))
+        })));
+      }
+      if (savedIncomes) {
+        setIncomes(JSON.parse(savedIncomes).map(i => ({
+          ...i,
+          dates: i.dates.map(d => ({ ...d, dateObj: new Date(d.dateObj) }))
+        })));
+      }
+      if (savedTheme !== null) setIsDarkMode(savedTheme === 'true');
+    } catch (e) {
+      console.log("Fehler beim Laden");
+    }
+  };
+
+  const saveData = async (newClaims, newIncomes) => {
+    try {
+      await AsyncStorage.setItem('@claims_v1', JSON.stringify(newClaims));
+      await AsyncStorage.setItem('@incomes_v1', JSON.stringify(newIncomes));
+    } catch (e) {
+      console.log("Fehler beim Speichern");
+    }
+  };
 
   // --- THEME COLORS ---
   const theme = {
@@ -78,6 +117,7 @@ export default function App() {
         
         setClaims(restoredClaims);
         setIncomes(restoredIncomes);
+        saveData(restoredClaims, restoredIncomes);
         setImportCode('');
         Alert.alert("Erfolg", "Backup erfolgreich importiert!");
         setActiveTab('list');
@@ -251,10 +291,14 @@ export default function App() {
     };
 
     if (activeTab === 'add') {
-      setClaims(prev => sortClaims([newEntry, ...prev]));
+      const updatedClaims = sortClaims([newEntry, ...claims]);
+      setClaims(updatedClaims);
+      saveData(updatedClaims, incomes);
       Alert.alert("Erfolg", "Ausgabe wurde hinzugefügt!");
     } else {
-      setIncomes(prev => [newEntry, ...prev]);
+      const updatedIncomes = [newEntry, ...incomes];
+      setIncomes(updatedIncomes);
+      saveData(claims, updatedIncomes);
       Alert.alert("Erfolg", "Einnahme wurde hinzugefügt!");
     }
 
@@ -265,50 +309,53 @@ export default function App() {
   const deleteWholeClaim = (id) => {
     Alert.alert("Löschen", "Gesamte Forderung entfernen?", [
       { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: () => setClaims(prev => prev.filter(c => c.id !== id)) }
+      { text: "Löschen", style: "destructive", onPress: () => {
+        const updated = claims.filter(c => c.id !== id);
+        setClaims(updated);
+        saveData(updated, incomes);
+      }}
     ]);
   };
 
   const deleteIncome = (id) => {
     Alert.alert("Löschen", "Einnahme entfernen?", [
       { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: () => setIncomes(prev => prev.filter(i => i.id !== id)) }
+      { text: "Löschen", style: "destructive", onPress: () => {
+        const updated = incomes.filter(i => i.id !== id);
+        setIncomes(updated);
+        saveData(claims, updated);
+      }}
     ]);
   };
 
   const toggleDateStatus = (claimId, dateId) => {
-    setClaims(prev => {
-      const updated = prev.map(c => {
-        if (c.id === claimId) {
-          return { ...c, dates: c.dates.map(d => d.id === dateId ? { ...d, completed: !d.completed } : d) };
-        }
-        return c;
-      });
-      return sortClaims(updated);
+    const updated = claims.map(c => {
+      if (c.id === claimId) {
+        return { ...c, dates: c.dates.map(d => d.id === dateId ? { ...d, completed: !d.completed } : d) };
+      }
+      return c;
     });
+    const sorted = sortClaims(updated);
+    setClaims(sorted);
+    saveData(sorted, incomes);
   };
 
+  // --- ÜBERARBEITETE BILANZ (SUMME ALLER TERMINE) ---
   const currentMonthSum = useMemo(() => {
-    const now = new Date();
     let sum = 0;
     claims.forEach(c => {
       c.dates.forEach(d => {
-        if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) {
-          sum += parseFloat(d.value);
-        }
+        sum += parseFloat(d.value);
       });
     });
     return sum.toFixed(2);
   }, [claims]);
 
   const currentMonthIncomeSum = useMemo(() => {
-    const now = new Date();
     let sum = 0;
     incomes.forEach(i => {
       i.dates.forEach(d => {
-        if (d.dateObj.getMonth() === now.getMonth() && d.dateObj.getFullYear() === now.getFullYear()) {
-          sum += parseFloat(d.value);
-        }
+        sum += parseFloat(d.value);
       });
     });
     return sum.toFixed(2);
@@ -368,7 +415,11 @@ export default function App() {
         <SafeAreaView>
           <TouchableOpacity 
             style={styles.themeToggle} 
-            onPress={() => setIsDarkMode(!isDarkMode)}
+            onPress={() => {
+              const newMode = !isDarkMode;
+              setIsDarkMode(newMode);
+              AsyncStorage.setItem('@theme_v1', newMode.toString());
+            }}
           >
             <Text style={{fontSize: 20}}>{isDarkMode ? '☀️' : '🌙'}</Text>
           </TouchableOpacity>
