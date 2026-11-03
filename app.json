@@ -1,36 +1,35 @@
 {
   "expo": {
-    "name": "Haushaltsbuch",
+    "name": "Haushaltsbuchhaltung",
     "slug": "haushaltsbuch",
     "version": "1.0.0",
-    "sdkVersion": "51.0.0",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A4DAB"
+      "backgroundColor": "#0F172A"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oc2003.haushaltsbuch"
+      "bundleIdentifier": "com.ozgcetin20.haushaltsbuch"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./icon.png",
-        "backgroundColor": "#0A4DAB"
+        "backgroundColor": "#0F172A"
       },
-      "package": "com.oc2003.haushaltsbuch"
+      "package": "com.ozgcetin20.haushaltsbuch"
     },
     "web": {
       "favicon": "./icon.png"
     },
     "extra": {
       "eas": {
-        "projectId": "8e45a9a6-38cf-4156-b23d-cdc7b6ec92f0"
+        "projectId": "1f6c8708-1571-4a3d-838c-d2b273e6ed37"
       }
     },
-    "owner": "oc2003"
+    "owner": "ozgcetin20"
   }
 }
