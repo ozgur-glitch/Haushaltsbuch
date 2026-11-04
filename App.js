@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
@@ -32,7 +33,7 @@ try {
   console.log('expo-document-picker nicht verfügbar');
 }
 
-const STORAGE_KEY = '@haushaltsbuch_transactions_v31';
+const STORAGE_KEY = '@haushaltsbuch_transactions_v33';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -43,7 +44,7 @@ export default function App() {
   const [startDate, setStartDate] = useState(''); // DDMMJJJJ
   const [endDate, setEndDate] = useState('');     // DDMMJJJJ
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceInterval, setRecurrenceInterval] = useState(1); // Standard: Alle 1 Monat
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -66,6 +67,9 @@ export default function App() {
 
   const [darkMode, setDarkMode] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  
+  // State für das Handbuch-Modal im Zahnrad-Menü
+  const [manualVisible, setManualVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -397,7 +401,6 @@ export default function App() {
 
   const balance = incomeTotal - expenseTotal;
 
-  // Statistik Logik: Filtert strikt NUR Ausgaben (type === 'expense') im angegebenen Zeitraum
   const getFilteredExpensesForStats = () => {
     let list = transactions.filter(t => t.type === 'expense');
 
@@ -436,9 +439,9 @@ export default function App() {
   }).sort((a, b) => b.amount - a.amount);
 
   const getPercentageColor = (pct) => {
-    if (pct >= 75) return '#EF4444'; // Rot
-    if (pct >= 50) return '#F59E0B'; // Orange
-    return '#10B981';                // Grün
+    if (pct >= 75) return '#EF4444';
+    if (pct >= 50) return '#F59E0B';
+    return '#10B981';
   };
 
   const getFilteredData = () => {
@@ -528,7 +531,6 @@ export default function App() {
           {/* Ansicht für den 'Neu'-Tab */}
           {activeTab === 'new' && (
             <>
-              {/* Overview Card */}
               <View style={[styles.summaryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamtsaldo (Offen)</Text>
                 <Text style={[styles.balanceText, { color: balance >= 0 ? theme.income : theme.expense }]}>
@@ -548,7 +550,6 @@ export default function App() {
                 </View>
               </View>
 
-              {/* Input Form */}
               <View style={[styles.formCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 10 }]}>Neuen Eintrag erfassen</Text>
                 
@@ -567,7 +568,6 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Beschreibung */}
                 <TextInput
                   style={[styles.input, { color: theme.text, borderColor: theme.border }]}
                   placeholder="Beschreibung (z.B. Miete)"
@@ -579,7 +579,6 @@ export default function App() {
                   blurOnSubmit={false}
                 />
 
-                {/* Betrag */}
                 <TextInput
                   ref={amountRef}
                   style={[styles.input, { color: theme.text, borderColor: theme.border }]}
@@ -598,7 +597,6 @@ export default function App() {
                   <Switch value={isRecurring} onValueChange={setIsRecurring} />
                 </View>
 
-                {/* Intervall-Auswahl für Serieneinträge */}
                 {isRecurring && (
                   <View style={{ marginBottom: 8 }}>
                     <Text style={{ color: theme.subText, fontSize: 12, marginBottom: 4 }}>Wiederholung:</Text>
@@ -628,7 +626,6 @@ export default function App() {
                   </View>
                 )}
 
-                {/* Startdatum / Fälligkeitsdatum */}
                 <TextInput
                   ref={startDateRef}
                   style={[styles.input, { color: theme.text, borderColor: theme.border }]}
@@ -649,7 +646,6 @@ export default function App() {
                   blurOnSubmit={!isRecurring}
                 />
 
-                {/* Enddatum für Serien */}
                 {isRecurring && (
                   <TextInput
                     ref={endDateRef}
@@ -674,12 +670,11 @@ export default function App() {
             </>
           )}
 
-          {/* Statistik Tab mit Zeitraum-Auswahl & Ausgaben nach Forderer */}
+          {/* Statistik Tab */}
           {activeTab === 'stats' && (
             <View style={styles.listContainer}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Ausgaben nach Forderer</Text>
 
-              {/* Zeitraum-Filter für Statistik mit zentralem Zurücksetzen-Button */}
               <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <View style={styles.statsFilterHeaderRow}>
                   <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>Optionaler Zeitraum:</Text>
@@ -690,8 +685,6 @@ export default function App() {
                   )}
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                  
-                  {/* Startdatum Input */}
                   <TextInput
                     style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
                     placeholder="Von (DDMMJJJJ)"
@@ -701,8 +694,6 @@ export default function App() {
                     value={statsStartDate}
                     onChangeText={handleStatsStartDateChange}
                   />
-
-                  {/* Enddatum Input */}
                   <TextInput
                     ref={statsEndDateRef}
                     style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
@@ -713,7 +704,6 @@ export default function App() {
                     value={statsEndDate}
                     onChangeText={setStatsEndDate}
                   />
-
                 </View>
               </View>
 
@@ -752,7 +742,7 @@ export default function App() {
             </View>
           )}
 
-          {/* Transaction Lists for other tabs with Search Bar */}
+          {/* Transaction Lists */}
           {activeTab !== 'new' && activeTab !== 'stats' && (
             <View style={styles.listContainer}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
@@ -761,7 +751,6 @@ export default function App() {
                 {activeTab === 'done' && 'Erledigte Ausgaben'}
               </Text>
 
-              {/* Suchleiste für die Listen */}
               <TextInput
                 style={[styles.searchInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.cardBg }]}
                 placeholder="🔍 Suchen (z.B. Miete, Netflix)..."
@@ -903,7 +892,7 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Settings Modal */}
+      {/* Settings Modal (mit integriertem Benutzerhandbuch-Button) */}
       <Modal visible={settingsVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
@@ -922,9 +911,57 @@ export default function App() {
               <Text style={styles.actionButtonText}>📂 Backup Importieren (JSON)</Text>
             </TouchableOpacity>
 
+            {/* NEU: Button zum Öffnen des Handbuchs im Zahnrad-Menü */}
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#10B981' }]} 
+              onPress={() => { setSettingsVisible(false); setManualVisible(true); }}
+            >
+              <Text style={styles.actionButtonText}>📖 Benutzerhandbuch öffnen</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.closeButton, { backgroundColor: theme.border }]}
               onPress={() => setSettingsVisible(false)}
+            >
+              <Text style={{ color: theme.text, fontWeight: 'bold' }}>Schließen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Benutzerhandbuch Modal */}
+      <Modal visible={manualVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg, maxHeight: '80%' }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>📖 Benutzerhandbuch</Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>1. Navigation & Tabs</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Über die oberen Reiter wechselst du zwischen der Erfassung (Neu), der reinen Ausgaben-Statistik, offenen Ausgaben, Einnahmen und erledigten Posten.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serieneinträge</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                • Beträge werden mit Punkt oder Komma eingetragen (z.B. 650.00).{'\n'}
+                • Datumsangaben immer im Format DDMMJJJJ (z.B. 01122026).{'\n'}
+                • Bei Serieneinträgen kannst du das Intervall (1, 2, 3, 6 oder 12 Monate) flexibel über die Buttons wählen.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Ausgaben-Statistik</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Hier fließen ausschließlich Ausgaben ein. Du kannst den Zeitraum über „Von“ und „Bis“ filtern und mit einem Klick auf „Zurücksetzen ✕“ wieder aufheben.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Einstellungen & Backups</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Über das Zahnrad-Symbol ⚙️ kannst du den Dark Mode anpassen sowie deine Daten als JSON-Backup exportieren oder importieren.
+              </Text>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: theme.border, marginTop: 15 }]}
+              onPress={() => setManualVisible(false)}
             >
               <Text style={{ color: theme.text, fontWeight: 'bold' }}>Schließen</Text>
             </TouchableOpacity>
@@ -1217,6 +1254,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontSize: 14,
+  },
+  manualHeading: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  manualText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
