@@ -32,7 +32,7 @@ try {
   console.log('expo-document-picker nicht verfügbar');
 }
 
-const STORAGE_KEY = '@haushaltsbuch_transactions_v30';
+const STORAGE_KEY = '@haushaltsbuch_transactions_v31';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -43,6 +43,7 @@ export default function App() {
   const [startDate, setStartDate] = useState(''); // DDMMJJJJ
   const [endDate, setEndDate] = useState('');     // DDMMJJJJ
   const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1); // Standard: Alle 1 Monat
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -213,7 +214,7 @@ export default function App() {
           isDone: false
         });
 
-        currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setMonth(currentDate.getMonth() + recurrenceInterval);
         count++;
       }
 
@@ -239,6 +240,7 @@ export default function App() {
     setStartDate('');
     setEndDate('');
     setIsRecurring(false);
+    setRecurrenceInterval(1);
   };
 
   const deleteTransaction = (id) => {
@@ -592,9 +594,39 @@ export default function App() {
                 />
 
                 <View style={styles.recurringToggleRow}>
-                  <Text style={{ color: theme.text, fontSize: 13 }}>Monatlicher Serieneintrag?</Text>
+                  <Text style={{ color: theme.text, fontSize: 13 }}>Serieneintrag?</Text>
                   <Switch value={isRecurring} onValueChange={setIsRecurring} />
                 </View>
+
+                {/* Intervall-Auswahl für Serieneinträge */}
+                {isRecurring && (
+                  <View style={{ marginBottom: 8 }}>
+                    <Text style={{ color: theme.subText, fontSize: 12, marginBottom: 4 }}>Wiederholung:</Text>
+                    <View style={styles.intervalRow}>
+                      {[1, 2, 3, 6, 12].map((months) => (
+                        <TouchableOpacity
+                          key={months}
+                          style={[
+                            styles.intervalButton,
+                            { borderColor: theme.border },
+                            recurrenceInterval === months && { backgroundColor: theme.accent, borderColor: theme.accent }
+                          ]}
+                          onPress={() => setRecurrenceInterval(months)}
+                        >
+                          <Text
+                            style={[
+                              styles.intervalButtonText,
+                              { color: theme.text },
+                              recurrenceInterval === months && { color: '#FFF' }
+                            ]}
+                          >
+                            {months === 1 ? '1 Mo' : `${months} Mo`}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
                 {/* Startdatum / Fälligkeitsdatum */}
                 <TextInput
@@ -1001,6 +1033,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  intervalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  intervalButton: {
+    flex: 1,
+    paddingVertical: 6,
+    marginHorizontal: 2,
+    borderWidth: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    backgroundColor: 'rgba(150,150,150,0.05)',
+  },
+  intervalButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   input: {
     height: 40,
