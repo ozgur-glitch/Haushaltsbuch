@@ -32,11 +32,15 @@ try {
   console.log('expo-document-picker nicht verfügbar');
 }
 
-const STORAGE_KEY = '@haushaltsbuch_transactions_v33';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v34';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
-  const [transactions, setTransactions] = useState([]);
+  // Profile & Daten Verwaltung
+  const [profiles, setProfiles] = useState(['Haushalt Standard']);
+  const [activeProfile, setActiveProfile] = useState('Haushalt Standard');
+  const [allTransactions, setAllTransactions] = useState({ 'Haushalt Standard': [] });
+  
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
@@ -64,11 +68,12 @@ export default function App() {
   const [editDueDate, setEditDueDate] = useState('');
   const [editType, setEditType] = useState('expense');
 
-  const [darkMode, setDarkMode] = useState(true);
+  // Standardmäßig im Hellmodus starten (false)
+  const [darkMode, setDarkMode] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  
-  // State für das Handbuch-Modal im Zahnrad-Menü
   const [manualVisible, setManualVisible] = useState(false);
+  const [newProfileModalVisible, setNewProfileModalVisible] = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
 
   useEffect(() => {
     loadData();
@@ -76,23 +81,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    saveData(transactions);
-  }, [transactions]);
+    saveData(allTransactions, profiles);
+  }, [allTransactions, profiles]);
 
   const loadData = async () => {
     try {
       const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
       if (jsonValue != null) {
-        setTransactions(JSON.parse(jsonValue));
+        const parsed = JSON.parse(jsonValue);
+        if (parsed.profiles && parsed.transactions) {
+          setProfiles(parsed.profiles);
+          setAllTransactions(parsed.transactions);
+          if (parsed.profiles.length > 0) {
+            setActiveProfile(parsed.profiles[0]);
+          }
+        }
       }
     } catch (e) {
       Alert.alert('Fehler', 'Daten konnten nicht geladen werden.');
     }
   };
 
-  const saveData = async (value) => {
+  const saveData = async (transactions, profs) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+      const dataToSave = JSON.stringify({ profiles: profs, transactions });
+      await AsyncStorage.setItem(STORAGE_KEY, dataToSave);
     } catch (e) {
       console.error('Speicherfehler:', e);
     }
@@ -113,6 +126,37 @@ export default function App() {
     try {
       await AsyncStorage.setItem(THEME_KEY, JSON.stringify(nextMode));
     } catch (e) {}
+  };
+
+  const addNewProfile = () => {
+    const trimmed = newProfileName.trim();
+    if (!trimmed) {
+      Alert.alert('Hinweis', 'Bitte einen Profilnamen eingeben.');
+      return;
+    }
+    if (profiles.includes(trimmed)) {
+      Alert.alert('Hinweis', 'Dieses Profil existiert bereits.');
+      return;
+    }
+
+    const updatedProfiles = [...profiles, trimmed];
+    const updatedTransactions = { ...allTransactions, [trimmed]: [] };
+
+    setProfiles(updatedProfiles);
+    setAllTransactions(updatedTransactions);
+    setActiveProfile(trimmed);
+    setNewProfileName('');
+    setNewProfileModalVisible(false);
+    setSettingsVisible(false);
+  };
+
+  const currentTransactions = allTransactions[activeProfile] || [];
+
+  const updateCurrentTransactions = (newTrans) => {
+    setAllTransactions({
+      ...allTransactions,
+      [activeProfile]: newTrans
+    });
   };
 
   const formatCurrency = (val) => {
@@ -221,8 +265,8 @@ export default function App() {
         count++;
       }
 
-      setTransactions([...newEntries, ...transactions]);
-      Alert.alert('Erfolg', `${newEntries.length} Serieneinträge wurden erstellt!`);
+      updateCurrentTransactions([...newEntries, ...currentTransactions]);
+      Alert.alert('Erfolg', `${newEntries.length} Serieneinträge für "${activeProfile}" erstellt!`);
     } else {
       const finalDate = startDate.trim() ? formatInputDate(startDate) : formatDateOutput(new Date());
       const singleEntry = {
@@ -235,7 +279,7 @@ export default function App() {
         isDone: false
       };
 
-      setTransactions([singleEntry, ...transactions]);
+      updateCurrentTransactions([singleEntry, ...currentTransactions]);
     }
 
     setTitle('');
@@ -252,14 +296,14 @@ export default function App() {
       {
         text: 'Löschen',
         style: 'destructive',
-        onPress: () => setTransactions(transactions.filter(t => t.id !== id))
+        onPress: () => updateCurrentTransactions(currentTransactions.filter(t => t.id !== id))
       }
     ]);
   };
 
   const toggleDone = (id) => {
-    setTransactions(
-      transactions.map(t => (t.id === id && t.type === 'expense' ? { ...t, isDone: !t.isDone } : t))
+    updateCurrentTransactions(
+      currentTransactions.map(t => (t.id === id && t.type === 'expense' ? { ...t, isDone: !t.isDone } : t))
     );
   };
 
@@ -284,8 +328,8 @@ export default function App() {
       return;
     }
 
-    setTransactions(
-      transactions.map((t) =>
+    updateCurrentTransactions(
+      currentTransactions.map((t) =>
         t.id === editingId
           ? {
               ...t,
@@ -313,7 +357,7 @@ export default function App() {
 
   const exportBackup = async () => {
     try {
-      const dataString = JSON.stringify(transactions, null, 2);
+      const dataString = JSON.stringify({ profiles, transactions: allTransactions }, null, 2);
       const fileName = `haushaltsbuch_backup_${Date.now()}.json`;
 
       if (Platform.OS === 'android' && FileSystem?.StorageAccessFramework) {
@@ -344,7 +388,7 @@ export default function App() {
 
   const importBackup = async () => {
     if (!DocumentPicker) {
-      Alert.alert('Fehler', 'DocumentPicker nicht verfügbar.');
+      Alert.alert('Hinweis', 'DocumentPicker ist in dieser Umgebung (z.B. Expo Go) eingeschränkt. Bitte nutzen Sie eine Entwicklungsversion oder Standalone-App.');
       return;
     }
 
@@ -365,22 +409,27 @@ export default function App() {
 
       const parsedData = JSON.parse(fileContent);
 
-      if (!Array.isArray(parsedData)) {
-        throw new Error('Ungültiges Dateiformat.');
-      }
-
       Alert.alert(
         'Wiederherstellung',
-        'Möchten Sie alle vorhandenen Daten durch dieses Backup ersetzen?',
+        'Möchten Sie alle vorhandenen Profile und Daten durch dieses Backup ersetzen?',
         [
           { text: 'Abbrechen', style: 'cancel' },
           {
             text: 'Wiederherstellen',
             style: 'destructive',
             onPress: () => {
-              setTransactions(parsedData);
+              if (parsedData.profiles && parsedData.transactions) {
+                setProfiles(parsedData.profiles);
+                setAllTransactions(parsedData.transactions);
+                setActiveProfile(parsedData.profiles[0]);
+              } else if (Array.isArray(parsedData)) {
+                // Abwärtskompatibilität für alte Backups
+                setProfiles(['Haushalt Standard']);
+                setAllTransactions({ 'Haushalt Standard': parsedData });
+                setActiveProfile('Haushalt Standard');
+              }
               setSettingsVisible(false);
-              Alert.alert('Erfolg', 'Daten wiederhergestellt!');
+              Alert.alert('Erfolg', 'Daten erfolgreich wiederhergestellt!');
             }
           }
         ]
@@ -390,18 +439,18 @@ export default function App() {
     }
   };
 
-  const incomeTotal = transactions
+  const incomeTotal = currentTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const expenseTotal = transactions
+  const expenseTotal = currentTransactions
     .filter(t => t.type === 'expense' && !t.isDone)
     .reduce((sum, t) => sum + t.amount, 0);
 
   const balance = incomeTotal - expenseTotal;
 
   const getFilteredExpensesForStats = () => {
-    let list = transactions.filter(t => t.type === 'expense');
+    let list = currentTransactions.filter(t => t.type === 'expense');
 
     const sFormatted = formatInputDate(statsStartDate);
     const eFormatted = formatInputDate(statsEndDate);
@@ -446,11 +495,11 @@ export default function App() {
   const getFilteredData = () => {
     let list = [];
     if (activeTab === 'expenses') {
-      list = transactions.filter(t => t.type === 'expense' && !t.isDone);
+      list = currentTransactions.filter(t => t.type === 'expense' && !t.isDone);
     } else if (activeTab === 'incomes') {
-      list = transactions.filter(t => t.type === 'income');
+      list = currentTransactions.filter(t => t.type === 'income');
     } else if (activeTab === 'done') {
-      list = transactions.filter(t => t.type === 'expense' && t.isDone);
+      list = currentTransactions.filter(t => t.type === 'expense' && t.isDone);
     }
 
     if (searchQuery.trim() !== '') {
@@ -484,7 +533,10 @@ export default function App() {
         <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.text }]}>Haushaltsbuch</Text>
+            <View>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>Haushaltsbuch</Text>
+              <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '600' }}>Aktives Profil: {activeProfile}</Text>
+            </View>
             <TouchableOpacity
               style={[styles.settingsButton, { backgroundColor: theme.cardBg }]}
               onPress={() => setSettingsVisible(true)}
@@ -492,6 +544,31 @@ export default function App() {
               <Text style={{ color: theme.text, fontSize: 18 }}>⚙️</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Profil-Auswahl Leiste */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.profileBar}>
+            {profiles.map((prof) => (
+              <TouchableOpacity
+                key={prof}
+                style={[
+                  styles.profileChip,
+                  { borderColor: theme.border, backgroundColor: theme.cardBg },
+                  activeProfile === prof && { backgroundColor: theme.accent, borderColor: theme.accent }
+                ]}
+                onPress={() => setActiveProfile(prof)}
+              >
+                <Text style={[styles.profileChipText, { color: theme.text }, activeProfile === prof && { color: '#FFF' }]}>
+                  🏠 {prof}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.profileChip, { borderColor: theme.accent, backgroundColor: 'transparent', borderStyle: 'dashed' }]}
+              onPress={() => setNewProfileModalVisible(true)}
+            >
+              <Text style={[styles.profileChipText, { color: theme.accent }]}>+ Neues Profil</Text>
+            </TouchableOpacity>
+          </ScrollView>
 
           {/* Navigation Tabs */}
           <View style={styles.tabContainer}>
@@ -531,7 +608,7 @@ export default function App() {
           {activeTab === 'new' && (
             <>
               <View style={[styles.summaryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-                <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamtsaldo (Offen)</Text>
+                <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamtsaldo ({activeProfile})</Text>
                 <Text style={[styles.balanceText, { color: balance >= 0 ? theme.income : theme.expense }]}>
                   {balance < 0 ? '-' : ''}{formatCurrency(balance)}
                 </Text>
@@ -550,7 +627,7 @@ export default function App() {
               </View>
 
               <View style={[styles.formCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 10 }]}>Neuen Eintrag erfassen</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 10 }]}>Eintrag erfassen ({activeProfile})</Text>
                 
                 <View style={styles.typeSelector}>
                   <TouchableOpacity
@@ -672,7 +749,7 @@ export default function App() {
           {/* Statistik Tab */}
           {activeTab === 'stats' && (
             <View style={styles.listContainer}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Ausgaben nach Forderer</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Ausgaben nach Forderer ({activeProfile})</Text>
 
               <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <View style={styles.statsFilterHeaderRow}>
@@ -747,7 +824,7 @@ export default function App() {
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 {activeTab === 'expenses' && 'Offene Ausgaben'}
                 {activeTab === 'incomes' && 'Einnahmen'}
-                {activeTab === 'done' && 'Erledigte Ausgaben'}
+                {activeTab === 'done' && 'Erledigte Ausgaben'} ({activeProfile})
               </Text>
 
               <TextInput
@@ -891,7 +968,7 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Settings Modal (mit integriertem Benutzerhandbuch-Button) */}
+      {/* Settings Modal */}
       <Modal visible={settingsVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
@@ -910,7 +987,6 @@ export default function App() {
               <Text style={styles.actionButtonText}>📂 Backup Importieren (JSON)</Text>
             </TouchableOpacity>
 
-            {/* NEU: Button zum Öffnen des Handbuchs im Zahnrad-Menü */}
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: '#10B981' }]} 
               onPress={() => { setSettingsVisible(false); setManualVisible(true); }}
@@ -928,6 +1004,34 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* Neues Profil Modal */}
+      <Modal visible={newProfileModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Neues Profil erstellen</Text>
+            
+            <TextInput
+              style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+              placeholder="Profilname (z.B. WG, Auto, Urlaub)"
+              placeholderTextColor={theme.subText}
+              value={newProfileName}
+              onChangeText={setNewProfileName}
+            />
+
+            <TouchableOpacity style={styles.actionButton} onPress={addNewProfile}>
+              <Text style={styles.actionButtonText}>Profil Hinzufügen</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: theme.border }]}
+              onPress={() => setNewProfileModalVisible(false)}
+            >
+              <Text style={{ color: theme.text, fontWeight: 'bold' }}>Abbrechen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Benutzerhandbuch Modal */}
       <Modal visible={manualVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
@@ -935,26 +1039,21 @@ export default function App() {
             <Text style={[styles.modalTitle, { color: theme.text }]}>📖 Benutzerhandbuch</Text>
             
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={[styles.manualHeading, { color: theme.text }]}>1. Navigation & Tabs</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>1. Profile (Haushalte)</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Über die oberen Reiter wechselst du zwischen der Erfassung (Neu), der reinen Ausgaben-Statistik, offenen Ausgaben, Einnahmen und erledigten Posten.
+                Oben in der Leiste kannst du zwischen verschiedenen Profilen (z.B. Hauptwohnsitz, WG, Urlaub) wechseln oder neue anlegen. Jedes Profil speichert seine Ausgaben und Einnahmen separat.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serieneinträge</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serien</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                • Beträge werden mit Punkt oder Komma eingetragen (z.B. 650.00).{'\n'}
-                • Datumsangaben immer im Format DDMMJJJJ (z.B. 01122026).{'\n'}
-                • Bei Serieneinträgen kannst du das Intervall (1, 2, 3, 6 oder 12 Monate) flexibel über die Buttons wählen.
+                • Beträge mit Punkt oder Komma (z.B. 650.00).{'\n'}
+                • Datumsangaben im Format DDMMJJJJ.{'\n'}
+                • Serieneinträge unterstützen flexible Intervalle (1, 2, 3, 6 oder 12 Monate).
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Ausgaben-Statistik</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Statistik & Backup</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Hier fließen ausschließlich Ausgaben ein. Du kannst den Zeitraum über „Von“ und „Bis“ filtern und mit einem Klick auf „Zurücksetzen ✕“ wieder aufheben.
-              </Text>
-
-              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Einstellungen & Backups</Text>
-              <Text style={[styles.manualText, { color: theme.subText }]}>
-                Über das Zahnrad-Symbol ⚙️ kannst du den Dark Mode anpassen sowie deine Daten als JSON-Backup exportieren oder importieren.
+                Die Statistik zeigt rein die Ausgaben des aktiven Profils. Über das Zahnrad ⚙️ erreichst du den hellen/dunklen Modus sowie die Backup-Funktionen.
               </Text>
             </ScrollView>
 
@@ -990,6 +1089,23 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: 8,
     borderRadius: 10,
+  },
+  profileBar: {
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  profileChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   summaryCard: {
     marginHorizontal: 20,
