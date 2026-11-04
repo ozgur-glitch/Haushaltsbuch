@@ -32,7 +32,7 @@ try {
   console.log('expo-document-picker nicht verfügbar');
 }
 
-const STORAGE_KEY = '@haushaltsbuch_transactions_v14';
+const STORAGE_KEY = '@haushaltsbuch_transactions_v30';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -44,15 +44,18 @@ export default function App() {
   const [endDate, setEndDate] = useState('');     // DDMMJJJJ
   const [isRecurring, setIsRecurring] = useState(false);
 
-  // Refs für das automatische Durchschalten (Focus-Loop)
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [statsStartDate, setStatsStartDate] = useState('');
+  const [statsEndDate, setStatsEndDate] = useState('');
+
   const amountRef = useRef(null);
   const startDateRef = useRef(null);
   const endDateRef = useRef(null);
+  const statsEndDateRef = useRef(null);
 
-  // Active Tab: 'new', 'expenses', 'incomes', 'done'
   const [activeTab, setActiveTab] = useState('new');
 
-  // Bearbeitungs-States
   const [editingId, setEditingId] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -140,7 +143,26 @@ export default function App() {
     const year = parseInt(cleaned.substring(4, 8), 10);
     
     const date = new Date(year, month, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+      return null;
+    }
     return isNaN(date.getTime()) ? null : date;
+  };
+
+  const dateToNumber = (dateStr) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('.');
+    if (parts.length !== 3) return null;
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+
+    const d = new Date(year, month - 1, day);
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+      return null;
+    }
+
+    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
   };
 
   const formatDateOutput = (date) => {
@@ -232,7 +254,7 @@ export default function App() {
 
   const toggleDone = (id) => {
     setTransactions(
-      transactions.map(t => (t.id === id ? { ...t, isDone: !t.isDone } : t))
+      transactions.map(t => (t.id === id && t.type === 'expense' ? { ...t, isDone: !t.isDone } : t))
     );
   };
 
@@ -265,7 +287,8 @@ export default function App() {
               title: editTitle.trim(),
               amount: parsedAmount,
               dueDate: editDueDate.trim() ? formatInputDate(editDueDate) : t.dueDate,
-              type: editType
+              type: editType,
+              isDone: editType === 'income' ? false : t.isDone
             }
           : t
       )
@@ -273,6 +296,14 @@ export default function App() {
 
     setEditModalVisible(false);
     setEditingId(null);
+  };
+
+  const handleStatsStartDateChange = (text) => {
+    setStatsStartDate(text);
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length === 8 && statsEndDateRef.current) {
+      statsEndDateRef.current.focus();
+    }
   };
 
   const exportBackup = async () => {
@@ -355,7 +386,7 @@ export default function App() {
   };
 
   const incomeTotal = transactions
-    .filter(t => t.type === 'income' && !t.isDone)
+    .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const expenseTotal = transactions
@@ -364,15 +395,65 @@ export default function App() {
 
   const balance = incomeTotal - expenseTotal;
 
-  const getFilteredData = () => {
-    if (activeTab === 'expenses') {
-      return transactions.filter(t => t.type === 'expense' && !t.isDone);
-    } else if (activeTab === 'incomes') {
-      return transactions.filter(t => t.type === 'income' && !t.isDone);
-    } else if (activeTab === 'done') {
-      return transactions.filter(t => t.isDone);
+  // Statistik Logik: Filtert strikt NUR Ausgaben (type === 'expense') im angegebenen Zeitraum
+  const getFilteredExpensesForStats = () => {
+    let list = transactions.filter(t => t.type === 'expense');
+
+    const sFormatted = formatInputDate(statsStartDate);
+    const eFormatted = formatInputDate(statsEndDate);
+
+    const sNum = dateToNumber(sFormatted);
+    const eNum = dateToNumber(eFormatted);
+
+    if (sNum && eNum) {
+      list = list.filter(t => {
+        const itemNum = dateToNumber(t.dueDate);
+        return itemNum && itemNum >= sNum && itemNum <= eNum;
+      });
     }
-    return [];
+
+    return list;
+  };
+
+  const statsExpenses = getFilteredExpensesForStats();
+  const totalStatsExpenseAmount = statsExpenses.reduce((sum, t) => sum + t.amount, 0);
+
+  const groupedByCreditor = {};
+  statsExpenses.forEach(t => {
+    const key = t.title.trim();
+    if (!groupedByCreditor[key]) {
+      groupedByCreditor[key] = 0;
+    }
+    groupedByCreditor[key] += t.amount;
+  });
+
+  const creditorStatsList = Object.keys(groupedByCreditor).map(title => {
+    const amount = groupedByCreditor[title];
+    const percentage = totalStatsExpenseAmount > 0 ? (amount / totalStatsExpenseAmount) * 100 : 0;
+    return { title, amount, percentage };
+  }).sort((a, b) => b.amount - a.amount);
+
+  const getPercentageColor = (pct) => {
+    if (pct >= 75) return '#EF4444'; // Rot
+    if (pct >= 50) return '#F59E0B'; // Orange
+    return '#10B981';                // Grün
+  };
+
+  const getFilteredData = () => {
+    let list = [];
+    if (activeTab === 'expenses') {
+      list = transactions.filter(t => t.type === 'expense' && !t.isDone);
+    } else if (activeTab === 'incomes') {
+      list = transactions.filter(t => t.type === 'income');
+    } else if (activeTab === 'done') {
+      list = transactions.filter(t => t.type === 'expense' && t.isDone);
+    }
+
+    if (searchQuery.trim() !== '') {
+      list = list.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+
+    return list;
   };
 
   const theme = {
@@ -412,25 +493,31 @@ export default function App() {
           <View style={styles.tabContainer}>
             <TouchableOpacity
               style={[styles.tabButton, activeTab === 'new' && { backgroundColor: theme.accent }]}
-              onPress={() => setActiveTab('new')}
+              onPress={() => { setActiveTab('new'); setSearchQuery(''); }}
             >
               <Text style={[styles.tabText, activeTab === 'new' && { color: '#FFF' }]}>Neu</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.tabButton, activeTab === 'stats' && { backgroundColor: theme.accent }]}
+              onPress={() => { setActiveTab('stats'); setSearchQuery(''); }}
+            >
+              <Text style={[styles.tabText, activeTab === 'stats' && { color: '#FFF' }]}>Statistik</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.tabButton, activeTab === 'expenses' && { backgroundColor: theme.accent }]}
-              onPress={() => setActiveTab('expenses')}
+              onPress={() => { setActiveTab('expenses'); setSearchQuery(''); }}
             >
               <Text style={[styles.tabText, activeTab === 'expenses' && { color: '#FFF' }]}>Ausgaben</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tabButton, activeTab === 'incomes' && { backgroundColor: theme.accent }]}
-              onPress={() => setActiveTab('incomes')}
+              onPress={() => { setActiveTab('incomes'); setSearchQuery(''); }}
             >
               <Text style={[styles.tabText, activeTab === 'incomes' && { color: '#FFF' }]}>Einnahmen</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tabButton, activeTab === 'done' && { backgroundColor: theme.accent }]}
-              onPress={() => setActiveTab('done')}
+              onPress={() => { setActiveTab('done'); setSearchQuery(''); }}
             >
               <Text style={[styles.tabText, activeTab === 'done' && { color: '#FFF' }]}>Erledigt</Text>
             </TouchableOpacity>
@@ -555,17 +642,104 @@ export default function App() {
             </>
           )}
 
-          {/* Transaction Lists for other tabs */}
-          {activeTab !== 'new' && (
+          {/* Statistik Tab mit Zeitraum-Auswahl & Ausgaben nach Forderer */}
+          {activeTab === 'stats' && (
+            <View style={styles.listContainer}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Ausgaben nach Forderer</Text>
+
+              {/* Zeitraum-Filter für Statistik mit zentralem Zurücksetzen-Button */}
+              <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
+                <View style={styles.statsFilterHeaderRow}>
+                  <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>Optionaler Zeitraum:</Text>
+                  {(statsStartDate.length > 0 || statsEndDate.length > 0) && (
+                    <TouchableOpacity onPress={() => { setStatsStartDate(''); setStatsEndDate(''); }}>
+                      <Text style={{ color: theme.accent, fontSize: 12, fontWeight: 'bold' }}>Zurücksetzen ✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                  
+                  {/* Startdatum Input */}
+                  <TextInput
+                    style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
+                    placeholder="Von (DDMMJJJJ)"
+                    placeholderTextColor={theme.subText}
+                    keyboardType="numeric"
+                    maxLength={8}
+                    value={statsStartDate}
+                    onChangeText={handleStatsStartDateChange}
+                  />
+
+                  {/* Enddatum Input */}
+                  <TextInput
+                    ref={statsEndDateRef}
+                    style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
+                    placeholder="Bis (DDMMJJJJ)"
+                    placeholderTextColor={theme.subText}
+                    keyboardType="numeric"
+                    maxLength={8}
+                    value={statsEndDate}
+                    onChangeText={setStatsEndDate}
+                  />
+
+                </View>
+              </View>
+
+              <View style={[styles.statsCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={[styles.statsHeaderTitle, { color: theme.text }]}>Gesamtausgaben:</Text>
+                  <Text style={{ color: theme.expense, fontWeight: 'bold', fontSize: 16 }}>{formatCurrency(totalStatsExpenseAmount)}</Text>
+                </View>
+
+                <View style={[styles.dividerFull, { backgroundColor: theme.border }]} />
+
+                {creditorStatsList.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: theme.subText, marginTop: 10 }]}>Keine Ausgaben im gewählten Zeitraum.</Text>
+                ) : (
+                  creditorStatsList.map((item, index) => {
+                    const pctColor = getPercentageColor(item.percentage);
+                    return (
+                      <View key={index} style={styles.creditorRow}>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.creditorLineRow}>
+                            <Text style={[styles.creditorTitleText, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+                            <View style={styles.creditorValuesContainer}>
+                              <Text style={[styles.creditorAmountText, { color: theme.text }]} numberOfLines={1}>{formatCurrency(item.amount)}</Text>
+                              <Text style={[styles.creditorPercentText, { color: pctColor }]} numberOfLines={1}>{item.percentage.toFixed(1)}%</Text>
+                            </View>
+                          </View>
+                          <View style={styles.miniBarBg}>
+                            <View style={[styles.miniBarFill, { width: `${item.percentage}%`, backgroundColor: pctColor }]} />
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Transaction Lists for other tabs with Search Bar */}
+          {activeTab !== 'new' && activeTab !== 'stats' && (
             <View style={styles.listContainer}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 {activeTab === 'expenses' && 'Offene Ausgaben'}
-                {activeTab === 'incomes' && 'Offene Einnahmen'}
-                {activeTab === 'done' && 'Erledigte Einträge'}
+                {activeTab === 'incomes' && 'Einnahmen'}
+                {activeTab === 'done' && 'Erledigte Ausgaben'}
               </Text>
 
+              {/* Suchleiste für die Listen */}
+              <TextInput
+                style={[styles.searchInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.cardBg }]}
+                placeholder="🔍 Suchen (z.B. Miete, Netflix)..."
+                placeholderTextColor={theme.subText}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+
               {getFilteredData().length === 0 ? (
-                <Text style={[styles.emptyText, { color: theme.subText }]}>Keine Einträge in diesem Tab vorhanden.</Text>
+                <Text style={[styles.emptyText, { color: theme.subText }]}>Keine Einträge gefunden.</Text>
               ) : (
                 getFilteredData().map((item) => (
                   <View
@@ -609,15 +783,17 @@ export default function App() {
                       {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
                     </Text>
 
-                    <TouchableOpacity
-                      style={[
-                        styles.doneButton,
-                        { backgroundColor: item.isDone ? theme.accent : theme.income }
-                      ]}
-                      onPress={() => toggleDone(item.id)}
-                    >
-                      <Text style={styles.doneButtonText}>{item.isDone ? '↩ Rückgängig' : '✓ Erledigt'}</Text>
-                    </TouchableOpacity>
+                    {item.type === 'expense' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.doneButton,
+                          { backgroundColor: item.isDone ? theme.accent : theme.income }
+                        ]}
+                        onPress={() => toggleDone(item.id)}
+                      >
+                        <Text style={styles.doneButtonText}>{item.isDone ? '↩ Rückgängig' : '✓ Erledigt'}</Text>
+                      </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity
                       style={styles.deleteButton}
@@ -673,10 +849,10 @@ export default function App() {
 
             <TextInput
               style={[styles.input, { color: theme.text, borderColor: theme.border }]}
-              placeholder="Fälligkeitsdatum (DDMMJJJJ)"
+              placeholder="Fälligkeitsdatum (DD.MM.JJJJ)"
               placeholderTextColor={theme.subText}
               keyboardType="numeric"
-              maxLength={8}
+              maxLength={10}
               value={editDueDate}
               onChangeText={setEditDueDate}
             />
@@ -789,6 +965,11 @@ const styles = StyleSheet.create({
     height: 25,
     backgroundColor: '#334155',
   },
+  dividerFull: {
+    height: 1,
+    width: '100%',
+    marginVertical: 10,
+  },
   formCard: {
     marginHorizontal: 20,
     marginTop: 5,
@@ -829,6 +1010,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 13,
   },
+  statsFilterCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  statsFilterHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateInputSingle: {
+    flex: 0.48,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    fontSize: 12,
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    fontSize: 13,
+  },
   addButton: {
     height: 40,
     borderRadius: 6,
@@ -844,19 +1052,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginTop: 5,
-    marginBottom: 15,
+    marginBottom: 10,
     borderRadius: 8,
     backgroundColor: 'rgba(150,150,150,0.1)',
     padding: 3,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
     borderRadius: 6,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#94A3B8',
   },
@@ -868,6 +1076,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  statsCard: {
+    padding: 15,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statsHeaderTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  creditorRow: {
+    marginBottom: 12,
+  },
+  creditorLineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  creditorTitleText: {
+    flex: 1,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  creditorValuesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  creditorAmountText: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    width: 95,
+    textAlign: 'right',
+  },
+  creditorPercentText: {
+    fontWeight: 'bold',
+    fontSize: 13,
+    width: 55,
+    textAlign: 'right',
+  },
+  miniBarBg: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(150,150,150,0.15)',
+    overflow: 'hidden',
+    marginTop: 2,
+  },
+  miniBarFill: {
+    height: '100%',
+    borderRadius: 4,
   },
   transItem: {
     flexDirection: 'row',
