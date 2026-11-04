@@ -1,9 +1,8 @@
-
 {
   "expo": {
     "name": "Haushaltsbuch",
     "slug": "haushaltsbuch",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,10 +16,6 @@
       "bundleIdentifier": "com.ozgcetin20.haushaltsbuch"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./adaptive-icon.png",
-        "backgroundColor": "#0F172A"
-      },
       "package": "com.ozgcetin20.haushaltsbuch"
     },
     "web": {
