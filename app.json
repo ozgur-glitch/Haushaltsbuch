@@ -12,16 +12,28 @@
       "backgroundColor": "#0F172A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ozgcetin20.haushaltsbuch"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F172A"
-      }
+      },
+      "package": "com.ozgcetin20.haushaltsbuch"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "sdkVersion": "51.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1f6c8708-1571-4a3d-838c-d2b273e6ed37"
+      }
     }
   }
 }
