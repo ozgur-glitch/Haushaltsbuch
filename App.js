@@ -32,11 +32,10 @@ try {
   console.log('expo-document-picker nicht verfügbar');
 }
 
-const STORAGE_KEY = '@haushaltsbuch_profiles_v34';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v35';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
-  // Profile & Daten Verwaltung
   const [profiles, setProfiles] = useState(['Haushalt Standard']);
   const [activeProfile, setActiveProfile] = useState('Haushalt Standard');
   const [allTransactions, setAllTransactions] = useState({ 'Haushalt Standard': [] });
@@ -388,7 +387,7 @@ export default function App() {
 
   const importBackup = async () => {
     if (!DocumentPicker) {
-      Alert.alert('Hinweis', 'DocumentPicker ist in dieser Umgebung (z.B. Expo Go) eingeschränkt. Bitte nutzen Sie eine Entwicklungsversion oder Standalone-App.');
+      Alert.alert('Hinweis', 'DocumentPicker ist in dieser Umgebung (z.B. Expo Go) eingeschränkt.');
       return;
     }
 
@@ -423,7 +422,6 @@ export default function App() {
                 setAllTransactions(parsedData.transactions);
                 setActiveProfile(parsedData.profiles[0]);
               } else if (Array.isArray(parsedData)) {
-                // Abwärtskompatibilität für alte Backups
                 setProfiles(['Haushalt Standard']);
                 setAllTransactions({ 'Haushalt Standard': parsedData });
                 setActiveProfile('Haushalt Standard');
@@ -1041,19 +1039,24 @@ export default function App() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={[styles.manualHeading, { color: theme.text }]}>1. Profile (Haushalte)</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Oben in der Leiste kannst du zwischen verschiedenen Profilen (z.B. Hauptwohnsitz, WG, Urlaub) wechseln oder neue anlegen. Jedes Profil speichert seine Ausgaben und Einnahmen separat.
+                Über die horizontale Leiste unter dem Header kannst du zwischen verschiedenen Profilen (z.B. Hauptwohnsitz, WG, Urlaub) wechseln oder über „+ Neues Profil“ weitere anlegen. Jedes Profil verwaltet seine Einnahmen und Ausgaben vollkommen unabhängig voneinander.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serien</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serieneinträge</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                • Beträge mit Punkt oder Komma (z.B. 650.00).{'\n'}
-                • Datumsangaben im Format DDMMJJJJ.{'\n'}
-                • Serieneinträge unterstützen flexible Intervalle (1, 2, 3, 6 oder 12 Monate).
+                • Beträge werden mit Punkt oder Komma eingetragen (z.B. 650.00).{'\n'}
+                • Datumsangaben immer im Format DDMMJJJJ (z.B. 01122026).{'\n'}
+                • Bei Serieneinträgen kannst du das gewünschte Intervall (1, 2, 3, 6 oder 12 Monate) direkt per Knopfdruck auswählen.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Statistik & Backup</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Statistik & Zeitraum</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Die Statistik zeigt rein die Ausgaben des aktiven Profils. Über das Zahnrad ⚙️ erreichst du den hellen/dunklen Modus sowie die Backup-Funktionen.
+                Die Ausgabenstatistik filtert strikt nach Ausgaben (Einnahmen werden ignoriert). Du kannst den Zeitraum über „Von“ und „Bis“ einschränken und mit „Zurücksetzen ✕“ wieder aufheben.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Einstellungen, Hellmodus & Backup</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Über das Zahnrad-Symbol ⚙️ oben rechts startest du im Hellmodus (kann auf Dark Mode umgeschaltet werden) und findest die Funktionen zum Exportieren oder Importieren deiner JSON-Backups.
               </Text>
             </ScrollView>
 
