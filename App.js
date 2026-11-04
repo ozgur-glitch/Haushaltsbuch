@@ -5,7 +5,6 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  FlatList,
   Alert,
   SafeAreaView,
   StatusBar,
@@ -16,23 +15,10 @@ import {
   ScrollView
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+import * as DocumentPicker from 'expo-document-picker';
 
-let FileSystem = null;
-let DocumentPicker = null;
-
-try {
-  FileSystem = require('expo-file-system');
-} catch (e) {
-  console.log('expo-file-system nicht verfügbar');
-}
-
-try {
-  DocumentPicker = require('expo-document-picker');
-} catch (e) {
-  console.log('expo-document-picker nicht verfügbar');
-}
-
-const STORAGE_KEY = '@haushaltsbuch_profiles_v35';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v37';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -43,8 +29,8 @@ export default function App() {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
-  const [startDate, setStartDate] = useState(''); // DDMMJJJJ
-  const [endDate, setEndDate] = useState('');     // DDMMJJJJ
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
 
@@ -67,7 +53,6 @@ export default function App() {
   const [editDueDate, setEditDueDate] = useState('');
   const [editType, setEditType] = useState('expense');
 
-  // Standardmäßig im Hellmodus starten (false)
   const [darkMode, setDarkMode] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [manualVisible, setManualVisible] = useState(false);
@@ -125,6 +110,77 @@ export default function App() {
     try {
       await AsyncStorage.setItem(THEME_KEY, JSON.stringify(nextMode));
     } catch (e) {}
+  };
+
+  // EXPORT FUNKTION (AUS DEM BEISPIELCODE)
+  const handleExportJsonFile = async () => {
+    try {
+      const exportPayload = { profiles, transactions: allTransactions };
+      const jsonString = JSON.stringify(exportPayload, null, 2);
+      const fileName = `haushaltsbuch_backup_${new Date().toISOString().slice(0, 10)}.json`;
+
+      if (Platform.OS === 'android' && FileSystem && FileSystem.StorageAccessFramework) {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          const uri = await FileSystem.StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            fileName,
+            'application/json'
+          );
+          await FileSystem.writeAsStringAsync(uri, jsonString, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          Alert.alert('Erfolg', 'Backup wurde im gewählten Ordner gespeichert!');
+        }
+      } else if (FileSystem && FileSystem.documentDirectory) {
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, jsonString, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        Alert.alert('Erfolg', `Gespeichert unter:\n${fileUri}`);
+      } else {
+        Alert.alert('Fehler', 'Export wird auf diesem Gerät nicht unterstützt.');
+      }
+    } catch (e) {
+      Alert.alert('Fehler', 'Export der JSON-Datei ist fehlgeschlagen: ' + e.message);
+    }
+  };
+
+  // IMPORT FUNKTION (AUS DEM BEISPIELCODE)
+  const handleImportJsonFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', '*/*'],
+        copyToCacheDirectory: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const fileUri = result.assets[0].uri;
+        const fileContent = await FileSystem.readAsStringAsync(fileUri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
+        const parsed = JSON.parse(fileContent);
+
+        if (parsed.profiles && parsed.transactions) {
+          setProfiles(parsed.profiles);
+          setAllTransactions(parsed.transactions);
+          setActiveProfile(parsed.profiles[0]);
+          setSettingsVisible(false);
+          Alert.alert("Erfolg", "Backup erfolgreich aus JSON-Datei importiert!");
+        } else if (Array.isArray(parsed)) {
+          setProfiles(['Haushalt Standard']);
+          setAllTransactions({ 'Haushalt Standard': parsed });
+          setActiveProfile('Haushalt Standard');
+          setSettingsVisible(false);
+          Alert.alert("Erfolg", "Backup erfolgreich aus JSON-Datei importiert!");
+        } else {
+          Alert.alert("Fehler", "Die ausgewählte Datei hat ein ungültiges Format.");
+        }
+      }
+    } catch (e) {
+      Alert.alert("Fehler beim Import", "Die Datei konnte nicht gelesen oder verarbeitet werden.");
+    }
   };
 
   const addNewProfile = () => {
@@ -351,89 +407,6 @@ export default function App() {
     const cleaned = text.replace(/\D/g, '');
     if (cleaned.length === 8 && statsEndDateRef.current) {
       statsEndDateRef.current.focus();
-    }
-  };
-
-  const exportBackup = async () => {
-    try {
-      const dataString = JSON.stringify({ profiles, transactions: allTransactions }, null, 2);
-      const fileName = `haushaltsbuch_backup_${Date.now()}.json`;
-
-      if (Platform.OS === 'android' && FileSystem?.StorageAccessFramework) {
-        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (permissions.granted) {
-          const uri = await FileSystem.StorageAccessFramework.createFileAsync(
-            permissions.directoryUri,
-            fileName,
-            'application/json'
-          );
-          await FileSystem.writeAsStringAsync(uri, dataString, { encoding: FileSystem.EncodingType.UTF8 });
-          Alert.alert('Erfolg', 'Backup gespeichert!');
-          return;
-        }
-      }
-
-      if (FileSystem?.documentDirectory) {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, dataString, { encoding: FileSystem.EncodingType.UTF8 });
-        Alert.alert('Erfolg', `Backup gespeichert unter:\n${fileUri}`);
-      } else {
-        Alert.alert('Info', 'Dateisystem in dieser Umgebung nicht verfügbar.');
-      }
-    } catch (e) {
-      Alert.alert('Fehler', 'Export fehlgeschlagen.');
-    }
-  };
-
-  const importBackup = async () => {
-    if (!DocumentPicker) {
-      Alert.alert('Hinweis', 'DocumentPicker ist in dieser Umgebung (z.B. Expo Go) eingeschränkt.');
-      return;
-    }
-
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
-        copyToCacheDirectory: true
-      });
-
-      if (result.canceled) return;
-
-      const fileUri = result.assets ? result.assets[0].uri : result.uri;
-      if (!fileUri || !FileSystem) return;
-
-      const fileContent = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
-
-      const parsedData = JSON.parse(fileContent);
-
-      Alert.alert(
-        'Wiederherstellung',
-        'Möchten Sie alle vorhandenen Profile und Daten durch dieses Backup ersetzen?',
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Wiederherstellen',
-            style: 'destructive',
-            onPress: () => {
-              if (parsedData.profiles && parsedData.transactions) {
-                setProfiles(parsedData.profiles);
-                setAllTransactions(parsedData.transactions);
-                setActiveProfile(parsedData.profiles[0]);
-              } else if (Array.isArray(parsedData)) {
-                setProfiles(['Haushalt Standard']);
-                setAllTransactions({ 'Haushalt Standard': parsedData });
-                setActiveProfile('Haushalt Standard');
-              }
-              setSettingsVisible(false);
-              Alert.alert('Erfolg', 'Daten erfolgreich wiederhergestellt!');
-            }
-          }
-        ]
-      );
-    } catch (e) {
-      Alert.alert('Fehler', 'Import fehlgeschlagen.');
     }
   };
 
@@ -977,11 +950,11 @@ export default function App() {
               <Switch value={darkMode} onValueChange={toggleTheme} />
             </View>
 
-            <TouchableOpacity style={styles.actionButton} onPress={exportBackup}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleExportJsonFile}>
               <Text style={styles.actionButtonText}>💾 Backup Exportieren (JSON)</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton} onPress={importBackup}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleImportJsonFile}>
               <Text style={styles.actionButtonText}>📂 Backup Importieren (JSON)</Text>
             </TouchableOpacity>
 
@@ -1056,7 +1029,13 @@ export default function App() {
 
               <Text style={[styles.manualHeading, { color: theme.text }]}>4. Einstellungen, Hellmodus & Backup</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Über das Zahnrad-Symbol ⚙️ oben rechts startest du im Hellmodus (kann auf Dark Mode umgeschaltet werden) und findest die Funktionen zum Exportieren oder Importieren deiner JSON-Backups.
+                Über das Zahnrad-Symbol ⚙️ oben rechts kannst du zwischen Hell- und Dunkelmodus wechseln sowie deine Backups exportieren oder importieren.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>5. Entwicklerinfo</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Entwickler: Özgür Cetin{'\n'}
+                E-Mail: ozgur.cetin@web.de
               </Text>
             </ScrollView>
 
