@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 
-const STORAGE_KEY = '@haushaltsbuch_profiles_v37';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v38';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -36,13 +36,19 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Zeitraum-Filter für Statistik
   const [statsStartDate, setStatsStartDate] = useState('');
   const [statsEndDate, setStatsEndDate] = useState('');
+
+  // Zeitraum-Filter für Gesamtsaldo
+  const [balanceStartDate, setBalanceStartDate] = useState('');
+  const [balanceEndDate, setBalanceEndDate] = useState('');
 
   const amountRef = useRef(null);
   const startDateRef = useRef(null);
   const endDateRef = useRef(null);
   const statsEndDateRef = useRef(null);
+  const balanceEndDateRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('new');
 
@@ -58,6 +64,12 @@ export default function App() {
   const [manualVisible, setManualVisible] = useState(false);
   const [newProfileModalVisible, setNewProfileModalVisible] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
+
+  // Profile-Verwaltung / Umbenennen Modal
+  const [manageProfilesVisible, setManageProfilesVisible] = useState(false);
+  const [editingProfileName, setEditingProfileName] = useState('');
+  const [targetProfileToEdit, setTargetProfileToEdit] = useState(null);
+  const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -112,7 +124,6 @@ export default function App() {
     } catch (e) {}
   };
 
-  // EXPORT FUNKTION (AUS DEM BEISPIELCODE)
   const handleExportJsonFile = async () => {
     try {
       const exportPayload = { profiles, transactions: allTransactions };
@@ -146,7 +157,6 @@ export default function App() {
     }
   };
 
-  // IMPORT FUNKTION (AUS DEM BEISPIELCODE)
   const handleImportJsonFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -202,7 +212,41 @@ export default function App() {
     setActiveProfile(trimmed);
     setNewProfileName('');
     setNewProfileModalVisible(false);
-    setSettingsVisible(false);
+  };
+
+  const openEditProfileModal = (profName) => {
+    setTargetProfileToEdit(profName);
+    setEditingProfileName(profName);
+    setEditProfileModalVisible(true);
+  };
+
+  const saveEditedProfileName = () => {
+    const trimmed = editingProfileName.trim();
+    if (!trimmed) {
+      Alert.alert('Hinweis', 'Der Profilname darf nicht leer sein.');
+      return;
+    }
+    if (trimmed !== targetProfileToEdit && profiles.includes(trimmed)) {
+      Alert.alert('Hinweis', 'Ein Profil mit diesem Namen existiert bereits.');
+      return;
+    }
+
+    const updatedProfiles = profiles.map(p => p === targetProfileToEdit ? trimmed : p);
+    const updatedTransactions = { ...allTransactions };
+    
+    if (targetProfileToEdit !== trimmed) {
+      updatedTransactions[trimmed] = updatedTransactions[targetProfileToEdit] || [];
+      delete updatedTransactions[targetProfileToEdit];
+    }
+
+    setProfiles(updatedProfiles);
+    setAllTransactions(updatedTransactions);
+    if (activeProfile === targetProfileToEdit) {
+      setActiveProfile(trimmed);
+    }
+    setEditProfileModalVisible(false);
+    setTargetProfileToEdit(null);
+    setEditingProfileName('');
   };
 
   const currentTransactions = allTransactions[activeProfile] || [];
@@ -410,11 +454,48 @@ export default function App() {
     }
   };
 
-  const incomeTotal = currentTransactions
+  const handleBalanceStartDateChange = (text) => {
+    setBalanceStartDate(text);
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length === 8 && balanceEndDateRef.current) {
+      balanceEndDateRef.current.focus();
+    }
+  };
+
+  // Gefilterte Transaktionen für den Gesamtsaldo (Standard: Aktueller Monat)
+  const getFilteredTransactionsForBalance = () => {
+    const sFormatted = formatInputDate(balanceStartDate);
+    const eFormatted = formatInputDate(balanceEndDate);
+
+    const sNum = dateToNumber(sFormatted);
+    const eNum = dateToNumber(eFormatted);
+
+    // Wenn manuell ein Zeitraum gewählt wurde:
+    if (sNum && eNum) {
+      return currentTransactions.filter(t => {
+        const itemNum = dateToNumber(t.dueDate);
+        return itemNum && itemNum >= sNum && itemNum <= eNum;
+      });
+    }
+
+    // Standard: Filter auf den aktuellen Monat
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return currentTransactions.filter(t => {
+      const d = parseGermanDate(t.dueDate);
+      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+  };
+
+  const balanceTransactions = getFilteredTransactionsForBalance();
+
+  const incomeTotal = balanceTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const expenseTotal = currentTransactions
+  const expenseTotal = balanceTransactions
     .filter(t => t.type === 'expense' && !t.isDone)
     .reduce((sum, t) => sum + t.amount, 0);
 
@@ -492,6 +573,8 @@ export default function App() {
     warning: '#F59E0B',
     doneBg: darkMode ? '#111827' : '#F1F5F9'
   };
+
+  const isBalanceFilteredManually = balanceStartDate.length > 0 || balanceEndDate.length > 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -578,6 +661,41 @@ export default function App() {
           {/* Ansicht für den 'Neu'-Tab */}
           {activeTab === 'new' && (
             <>
+              {/* Saldo Zeitraum-Filter */}
+              <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border, marginHorizontal: 20 }]}>
+                <View style={styles.statsFilterHeaderRow}>
+                  <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>
+                    Saldo-Zeitraum: {isBalanceFilteredManually ? 'Manuell' : 'Aktueller Monat'}
+                  </Text>
+                  {isBalanceFilteredManually && (
+                    <TouchableOpacity onPress={() => { setBalanceStartDate(''); setBalanceEndDate(''); }}>
+                      <Text style={{ color: theme.accent, fontSize: 12, fontWeight: 'bold' }}>Zurücksetzen ✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                  <TextInput
+                    style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
+                    placeholder="Von (DDMMJJJJ)"
+                    placeholderTextColor={theme.subText}
+                    keyboardType="numeric"
+                    maxLength={8}
+                    value={balanceStartDate}
+                    onChangeText={handleBalanceStartDateChange}
+                  />
+                  <TextInput
+                    ref={balanceEndDateRef}
+                    style={[styles.dateInputSingle, { color: theme.text, borderColor: theme.border }]}
+                    placeholder="Bis (DDMMJJJJ)"
+                    placeholderTextColor={theme.subText}
+                    keyboardType="numeric"
+                    maxLength={8}
+                    value={balanceEndDate}
+                    onChangeText={setBalanceEndDate}
+                  />
+                </View>
+              </View>
+
               <View style={[styles.summaryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamtsaldo ({activeProfile})</Text>
                 <Text style={[styles.balanceText, { color: balance >= 0 ? theme.income : theme.expense }]}>
@@ -877,7 +995,7 @@ export default function App() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Edit Modal */}
+      {/* Edit Transaction Modal */}
       <Modal visible={editModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
@@ -950,6 +1068,13 @@ export default function App() {
               <Switch value={darkMode} onValueChange={toggleTheme} />
             </View>
 
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#8B5CF6' }]} 
+              onPress={() => { setSettingsVisible(false); setManageProfilesVisible(true); }}
+            >
+              <Text style={styles.actionButtonText}>✏️ Profile verwalten & umbenennen</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.actionButton} onPress={handleExportJsonFile}>
               <Text style={styles.actionButtonText}>💾 Backup Exportieren (JSON)</Text>
             </TouchableOpacity>
@@ -970,6 +1095,64 @@ export default function App() {
               onPress={() => setSettingsVisible(false)}
             >
               <Text style={{ color: theme.text, fontWeight: 'bold' }}>Schließen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Profile verwalten Modal */}
+      <Modal visible={manageProfilesVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg, maxHeight: '80%' }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Profile verwalten</Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {profiles.map((prof) => (
+                <View key={prof} style={styles.profileManageRow}>
+                  <Text style={{ color: theme.text, fontSize: 15, fontWeight: '600', flex: 1 }}>🏠 {prof}</Text>
+                  <TouchableOpacity
+                    style={styles.profileEditBtn}
+                    onPress={() => openEditProfileModal(prof)}
+                  >
+                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Umbenennen</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: theme.border, marginTop: 15 }]}
+              onPress={() => setManageProfilesVisible(false)}
+            >
+              <Text style={{ color: theme.text, fontWeight: 'bold' }}>Schließen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Einzelnes Profil umbenennen Modal */}
+      <Modal visible={editProfileModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Profil umbenennen</Text>
+
+            <TextInput
+              style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+              placeholder="Neuer Profilname"
+              placeholderTextColor={theme.subText}
+              value={editingProfileName}
+              onChangeText={setEditingProfileName}
+            />
+
+            <TouchableOpacity style={styles.actionButton} onPress={saveEditedProfileName}>
+              <Text style={styles.actionButtonText}>Speichern</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: theme.border }]}
+              onPress={() => setEditProfileModalVisible(false)}
+            >
+              <Text style={{ color: theme.text, fontWeight: 'bold' }}>Abbrechen</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1010,29 +1193,34 @@ export default function App() {
             <Text style={[styles.modalTitle, { color: theme.text }]}>📖 Benutzerhandbuch</Text>
             
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={[styles.manualHeading, { color: theme.text }]}>1. Profile (Haushalte)</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>1. Profile (Haushalte) & Umbenennen</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Über die horizontale Leiste unter dem Header kannst du zwischen verschiedenen Profilen (z.B. Hauptwohnsitz, WG, Urlaub) wechseln oder über „+ Neues Profil“ weitere anlegen. Jedes Profil verwaltet seine Einnahmen und Ausgaben vollkommen unabhängig voneinander.
+                Über die obere Leiste wechselst du schnell zwischen Profilen. Neue Profile erstellst du mit „+ Neues Profil“. Über ⚙️ Einstellungen ➔ „Profile verwalten & umbenennen“ kannst du bestehende Profile jederzeit umbenennen.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Einträge & Serieneinträge</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Gesamtsaldo & Zeitraum-Filter</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                • Beträge werden mit Punkt oder Komma eingetragen (z.B. 650.00).{'\n'}
-                • Datumsangaben immer im Format DDMMJJJJ (z.B. 01122026).{'\n'}
-                • Bei Serieneinträgen kannst du das gewünschte Intervall (1, 2, 3, 6 oder 12 Monate) direkt per Knopfdruck auswählen.
+                Der Gesamtsaldo berechnet standardmäßig alle Einträge des **aktuellen Monats**. Über die Eingabefelder „Von“ und „Bis“ direkt über der Saldo-Karte kannst du einen beliebigen Zeitraum im Format DDMMJJJJ festlegen. Mit „Zurücksetzen ✕“ kehrst du zum Monatsfilter zurück.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Statistik & Zeitraum</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Einträge & Serieneinträge</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Die Ausgabenstatistik filtert strikt nach Ausgaben (Einnahmen werden ignoriert). Du kannst den Zeitraum über „Von“ und „Bis“ einschränken und mit „Zurücksetzen ✕“ wieder aufheben.
+                • Beträge mit Punkt oder Komma eingeben (z.B. 650.00).{'\n'}
+                • Datumsangaben im Format DDMMJJJJ (z.B. 01122026).{'\n'}
+                • Serieneinträge bieten Intervalle von 1, 2, 3, 6 oder 12 Monaten.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Einstellungen, Hellmodus & Backup</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Statistik</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Über das Zahnrad-Symbol ⚙️ oben rechts kannst du zwischen Hell- und Dunkelmodus wechseln sowie deine Backups exportieren oder importieren.
+                Die Ausgabenstatistik fasst ausschließlich Ausgaben nach Forderer zusammen (Einnahmen werden ignoriert) und bietet ebenfalls einen optionalen Zeitraum-Filter.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>5. Entwicklerinfo</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>5. Einstellungen, Dark Mode & Backup</Text>
+              <Text style={[styles.manualText, { color: theme.subText }]}>
+                Im Einstellungs-Menü ⚙️ wählst du deinen bevorzugten Theme-Modus und kannst deine JSON-Backups sicher speichern oder laden.
+              </Text>
+
+              <Text style={[styles.manualHeading, { color: theme.text }]}>6. Entwicklerinfo</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
                 Entwickler: Özgür Cetin{'\n'}
                 E-Mail: ozgur.cetin@web.de
@@ -1109,7 +1297,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     width: '100%',
-    justifyContent: 'space-around',
+    justify.content: 'space-around',
     alignItems: 'center',
   },
   summaryItem: {
@@ -1401,5 +1589,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
+  },
+  profileManageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150,150,150,0.2)',
+  },
+  profileEditBtn: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
 });
