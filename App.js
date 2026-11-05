@@ -462,7 +462,6 @@ export default function App() {
     }
   };
 
-  // Gefilterte Transaktionen für den Gesamtsaldo (Standard: Aktueller Monat)
   const getFilteredTransactionsForBalance = () => {
     const sFormatted = formatInputDate(balanceStartDate);
     const eFormatted = formatInputDate(balanceEndDate);
@@ -470,7 +469,6 @@ export default function App() {
     const sNum = dateToNumber(sFormatted);
     const eNum = dateToNumber(eFormatted);
 
-    // Wenn manuell ein Zeitraum gewählt wurde:
     if (sNum && eNum) {
       return currentTransactions.filter(t => {
         const itemNum = dateToNumber(t.dueDate);
@@ -478,7 +476,6 @@ export default function App() {
       });
     }
 
-    // Standard: Filter auf den aktuellen Monat
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -1297,7 +1294,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     width: '100%',
-    justify.content: 'space-around',
+    justifyContent: 'space-around',
     alignItems: 'center',
   },
   summaryItem: {
