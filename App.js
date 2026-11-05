@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 
-const STORAGE_KEY = '@haushaltsbuch_profiles_v38';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v39';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -35,6 +35,9 @@ export default function App() {
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sortierung für offene Ausgaben ('date' oder 'title')
+  const [expenseSortBy, setExpenseSortBy] = useState('date');
 
   // Zeitraum-Filter für Statistik
   const [statsStartDate, setStatsStartDate] = useState('');
@@ -535,16 +538,38 @@ export default function App() {
     return { title, amount, percentage };
   }).sort((a, b) => b.amount - a.amount);
 
+  // Angepasste Farblogik für Statistik (%):
+  // < 10% = grün
+  // 10% - 19.99% = gelb
+  // 20% - 100% = rot (wird ab 20% aufwärts stufenweise dunkler)
   const getPercentageColor = (pct) => {
-    if (pct >= 75) return '#EF4444';
-    if (pct >= 50) return '#F59E0B';
-    return '#10B981';
+    if (pct < 10) return '#10B981'; // Grün
+    if (pct < 20) return '#F59E0B'; // Gelb
+    
+    // Ab 20% bis 100% fließend zu dunklem Rot (Hex-Werte von hellrot bis tiefes Dunkelrot)
+    // Bei 20% -> #EF4444, bei 100% -> #7F1D1D
+    const ratio = Math.min((pct - 20) / 80, 1);
+    const r = Math.round(239 - ratio * (239 - 127)); // 239 -> 127
+    const g = Math.round(68 - ratio * (68 - 29));     // 68 -> 29
+    const b = Math.round(68 - ratio * (68 - 29));     // 68 -> 29
+    return `rgb(${r}, ${g}, ${b})`;
   };
 
   const getFilteredData = () => {
     let list = [];
     if (activeTab === 'expenses') {
       list = currentTransactions.filter(t => t.type === 'expense' && !t.isDone);
+      
+      // Sortierung für offene Ausgaben
+      list.sort((a, b) => {
+        if (expenseSortBy === 'date') {
+          const numA = dateToNumber(a.dueDate) || 0;
+          const numB = dateToNumber(b.dueDate) || 0;
+          return numA - numB; // Nächstes Datum zuerst
+        } else {
+          return a.title.localeCompare(b.title); // Nach Beschreibung (Alphabetisch)
+        }
+      });
     } else if (activeTab === 'incomes') {
       list = currentTransactions.filter(t => t.type === 'income');
     } else if (activeTab === 'done') {
@@ -913,6 +938,37 @@ export default function App() {
                 {activeTab === 'done' && 'Erledigte Ausgaben'} ({activeProfile})
               </Text>
 
+              {/* Sortier-Optionen nur im Ausgaben-Tab anzeigen */}
+              {activeTab === 'expenses' && (
+                <View style={styles.sortBarContainer}>
+                  <Text style={{ color: theme.subText, fontSize: 12, alignSelf: 'center', marginRight: 6 }}>Sortieren nach:</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.sortChip,
+                      { borderColor: theme.border, backgroundColor: theme.cardBg },
+                      expenseSortBy === 'date' && { backgroundColor: theme.accent, borderColor: theme.accent }
+                    ]}
+                    onPress={() => setExpenseSortBy('date')}
+                  >
+                    <Text style={[styles.sortChipText, { color: theme.text }, expenseSortBy === 'date' && { color: '#FFF' }]}>
+                      Frist (Datum)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.sortChip,
+                      { borderColor: theme.border, backgroundColor: theme.cardBg },
+                      expenseSortBy === 'title' && { backgroundColor: theme.accent, borderColor: theme.accent }
+                    ]}
+                    onPress={() => setExpenseSortBy('title')}
+                  >
+                    <Text style={[styles.sortChipText, { color: theme.text }, expenseSortBy === 'title' && { color: '#FFF' }]}>
+                      Beschreibung
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <TextInput
                 style={[styles.searchInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.cardBg }]}
                 placeholder="🔍 Suchen (z.B. Miete, Netflix)..."
@@ -1200,16 +1256,17 @@ export default function App() {
                 Der Gesamtsaldo berechnet standardmäßig alle Einträge des **aktuellen Monats**. Über die Eingabefelder „Von“ und „Bis“ direkt über der Saldo-Karte kannst du einen beliebigen Zeitraum im Format DDMMJJJJ festlegen. Mit „Zurücksetzen ✕“ kehrst du zum Monatsfilter zurück.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Einträge & Serieneinträge</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>3. Offene Ausgaben & Sortierung</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                • Beträge mit Punkt oder Komma eingeben (z.B. 650.00).{'\n'}
-                • Datumsangaben im Format DDMMJJJJ (z.B. 01122026).{'\n'}
-                • Serieneinträge bieten Intervalle von 1, 2, 3, 6 oder 12 Monaten.
+                Offene Ausgaben werden standardmäßig nach der anstehendsten Frist (Datum) sortiert. Über die Sortier-Leiste oben in der Ausgabenansicht kannst du flexibel zwischen **Frist (Datum)** und **Beschreibung** umschalten.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Statistik</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>4. Statistik & Prozentfarben</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Die Ausgabenstatistik fasst ausschließlich Ausgaben nach Forderer zusammen (Einnahmen werden ignoriert) und bietet ebenfalls einen optionalen Zeitraum-Filter.
+                Die Ausgabenstatistik fasst Ausgaben nach Forderer zusammen. Die Prozentbalken sind farblich abgestimmt:{'\n'}
+                • Unter 10%: Grün{'\n'}
+                • 10% bis 19,99%: Gelb{'\n'}
+                • Ab 20% bis 100%: Rot (wird bei höheren Prozentwerten automatisch dunkler).
               </Text>
 
               <Text style={[styles.manualHeading, { color: theme.text }]}>5. Einstellungen, Dark Mode & Backup</Text>
@@ -1396,6 +1453,22 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     fontSize: 12,
+  },
+  sortBarContainer: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  sortChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 6,
+  },
+  sortChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   searchInput: {
     height: 40,
