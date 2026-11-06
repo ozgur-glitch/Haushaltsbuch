@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 
-const STORAGE_KEY = '@haushaltsbuch_profiles_v41';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v42';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -490,6 +490,9 @@ export default function App() {
   const doneAmount = periodTransactions.filter(t => t.isDone).reduce((sum, t) => sum + t.amount, 0);
   const remainingOpenAmount = periodTransactions.filter(t => !t.isDone).reduce((sum, t) => sum + t.amount, 0);
 
+  const donePercent = totalDueAmount > 0 ? (doneAmount / totalDueAmount) * 100 : 0;
+  const openPercent = totalDueAmount > 0 ? (remainingOpenAmount / totalDueAmount) * 100 : 0;
+
   const getFilteredExpensesForStats = () => {
     let list = currentTransactions.filter(t => t.type === 'expense');
 
@@ -656,7 +659,7 @@ export default function App() {
           {/* Ansicht für den 'Neu'-Tab */}
           {activeTab === 'new' && (
             <>
-              {/* Zeitraum-Filter für Gesamtausgaben */}
+              {/* Zeitraum-Filter für Gesamtsaldo */}
               <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border, marginHorizontal: 20 }]}>
                 <View style={styles.statsFilterHeaderRow}>
                   <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>
@@ -691,24 +694,41 @@ export default function App() {
                 </View>
               </View>
 
-              {/* Gesamtsaldo Card mit Fällig, Erledigt und Rest Offen */}
+              {/* Grafische Gesamtsaldo Card mit farbigen Kacheln, Prozentwerten und Ladebalken */}
               <View style={[styles.summaryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
                 <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamt Fällig ({activeProfile})</Text>
                 <Text style={[styles.balanceText, { color: theme.text }]}>
                   {formatCurrency(totalDueAmount)}
                 </Text>
 
-                <View style={[styles.dividerFull, { backgroundColor: theme.border, marginVertical: 12 }]} />
+                {/* Grafische Prozent-Ladebalken */}
+                <View style={styles.progressBarContainer}>
+                  <View style={[styles.progressBarFill, { width: `${donePercent}%`, backgroundColor: '#10B981' }]} />
+                  <View style={[styles.progressBarFill, { width: `${openPercent}%`, backgroundColor: '#EF4444' }]} />
+                </View>
 
-                <View style={styles.summaryRow}>
-                  <View style={styles.summaryItem}>
-                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>✓ Erledigt</Text>
-                    <Text style={[styles.incomeText, { color: '#10B981' }]}>{formatCurrency(doneAmount)}</Text>
+                {/* Farbige grafische Kacheln für Erledigt & Offen */}
+                <View style={styles.visualBoxesRow}>
+                  {/* Grün: Erledigt */}
+                  <View style={[styles.visualBox, { backgroundColor: darkMode ? '#064E3B' : '#ECFDF5', borderColor: '#10B981' }]}>
+                    <Text style={[styles.visualBoxTitle, { color: '#10B981' }]}>✓ Erledigt</Text>
+                    <Text style={[styles.visualBoxAmount, { color: darkMode ? '#A7F3D0' : '#065F46' }]}>
+                      {formatCurrency(doneAmount)}
+                    </Text>
+                    <Text style={[styles.visualBoxPercent, { color: '#10B981' }]}>
+                      {donePercent.toFixed(1)}%
+                    </Text>
                   </View>
-                  <View style={styles.divider} />
-                  <View style={styles.summaryItem}>
-                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>⏳ Noch Offen</Text>
-                    <Text style={[styles.expenseText, { color: theme.expense }]}>{formatCurrency(remainingOpenAmount)}</Text>
+
+                  {/* Rot: Noch Offen */}
+                  <View style={[styles.visualBox, { backgroundColor: darkMode ? '#7F1D1D' : '#FEF2F2', borderColor: '#EF4444' }]}>
+                    <Text style={[styles.visualBoxTitle, { color: '#EF4444' }]}>⏳ Noch Offen</Text>
+                    <Text style={[styles.visualBoxAmount, { color: darkMode ? '#FCA5A5' : '#991B1B' }]}>
+                      {formatCurrency(remainingOpenAmount)}
+                    </Text>
+                    <Text style={[styles.visualBoxPercent, { color: '#EF4444' }]}>
+                      {openPercent.toFixed(1)}%
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -1188,13 +1208,13 @@ export default function App() {
                 Über die obere Leiste wechselst du schnell zwischen Profilen. Neue Profile erstellst du mit „+ Neues Profil“. Über ⚙️ Einstellungen ➔ „Profile verwalten & umbenennen“ kannst du bestehende Profile jederzeit umbenennen.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Gesamt Fällig, Erledigt & Rest Offen</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Grafische Übersicht & Prozentanzeige</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Der Hauptbereich berechnet standardmäßig für den **aktuellen Monat**:{'\n'}
-                • **Gesamt Fällig:** Die Gesamtsumme aller fälligen Ausgaben.{'\n'}
-                • **✓ Erledigt:** Der Betrag der bereits abgehakten Ausgaben.{'\n'}
-                • **⏳ Noch Offen:** Der verbleibende, noch offene Restbetrag.{'\n'}
-                Über die Eingabefelder „Von“ und „Bis“ kannst du flexibel einen beliebigen Zeitraum im Format DDMMJJJJ festlegen.
+                Der Hauptbereich zeigt dir auf einen Blick:{'\n'}
+                • **Gesamt Fällig:** Alle Ausgaben des Monats/Zeitraums.{'\n'}
+                • **Grüne Kachel (✓ Erledigt):** Bereits bezahlte Beträge samt prozentualem Anteil.{'\n'}
+                • **Rote Kachel (⏳ Noch Offen):** Verbleibender Restbetrag samt prozentualem Anteil.{'\n'}
+                • **Fortschrittsbalken:** Ein kombinierter visueller Balken zeigt das Verhältnis zwischen erledigten (grün) und offenen (rot) Ausgaben.
               </Text>
 
               <Text style={[styles.manualHeading, { color: theme.text }]}>3. Offene Ausgaben & Sortierung</Text>
@@ -1287,31 +1307,46 @@ const styles = StyleSheet.create({
   balanceText: {
     fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 8,
   },
-  summaryRow: {
+  progressBarContainer: {
+    flexDirection: 'row',
+    height: 8,
+    width: '100%',
+    borderRadius: 4,
+    backgroundColor: 'rgba(150,150,150,0.15)',
+    overflow: 'hidden',
+    marginVertical: 10,
+  },
+  progressBarFill: {
+    height: '100%',
+  },
+  visualBoxesRow: {
     flexDirection: 'row',
     width: '100%',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  visualBox: {
+    flex: 0.48,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
   },
-  summaryItem: {
-    alignItems: 'center',
+  visualBoxTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 2,
   },
-  summaryItemLabel: {
+  visualBoxAmount: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginVertical: 2,
+  },
+  visualBoxPercent: {
     fontSize: 11,
-  },
-  incomeText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  expenseText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  divider: {
-    width: 1,
-    height: 25,
-    backgroundColor: '#334155',
+    fontWeight: '700',
   },
   dividerFull: {
     height: 1,
