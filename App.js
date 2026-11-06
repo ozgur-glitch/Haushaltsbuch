@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 
-const STORAGE_KEY = '@haushaltsbuch_profiles_v39';
+const STORAGE_KEY = '@haushaltsbuch_profiles_v41';
 const THEME_KEY = '@haushaltsbuch_theme_v1';
 
 export default function App() {
@@ -28,7 +28,6 @@ export default function App() {
   
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState('expense');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
@@ -43,7 +42,7 @@ export default function App() {
   const [statsStartDate, setStatsStartDate] = useState('');
   const [statsEndDate, setStatsEndDate] = useState('');
 
-  // Zeitraum-Filter für Gesamtsaldo
+  // Zeitraum-Filter für Gesamtausgaben
   const [balanceStartDate, setBalanceStartDate] = useState('');
   const [balanceEndDate, setBalanceEndDate] = useState('');
 
@@ -60,7 +59,6 @@ export default function App() {
   const [editTitle, setEditTitle] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
-  const [editType, setEditType] = useState('expense');
 
   const [darkMode, setDarkMode] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -357,7 +355,7 @@ export default function App() {
           id: `${Date.now()}-${count}`,
           title: title.trim(),
           amount: parsedAmount,
-          type,
+          type: 'expense',
           dueDate: formatDateOutput(currentDate),
           isRecurring: true,
           isDone: false
@@ -375,7 +373,7 @@ export default function App() {
         id: Date.now().toString(),
         title: title.trim(),
         amount: parsedAmount,
-        type,
+        type: 'expense',
         dueDate: finalDate,
         isRecurring: false,
         isDone: false
@@ -405,7 +403,7 @@ export default function App() {
 
   const toggleDone = (id) => {
     updateCurrentTransactions(
-      currentTransactions.map(t => (t.id === id && t.type === 'expense' ? { ...t, isDone: !t.isDone } : t))
+      currentTransactions.map(t => (t.id === id ? { ...t, isDone: !t.isDone } : t))
     );
   };
 
@@ -414,7 +412,6 @@ export default function App() {
     setEditTitle(item.title);
     setEditAmount(item.amount.toString());
     setEditDueDate(item.dueDate);
-    setEditType(item.type);
     setEditModalVisible(true);
   };
 
@@ -438,8 +435,6 @@ export default function App() {
               title: editTitle.trim(),
               amount: parsedAmount,
               dueDate: editDueDate.trim() ? formatInputDate(editDueDate) : t.dueDate,
-              type: editType,
-              isDone: editType === 'income' ? false : t.isDone
             }
           : t
       )
@@ -465,7 +460,7 @@ export default function App() {
     }
   };
 
-  const getFilteredTransactionsForBalance = () => {
+  const getPeriodTransactions = () => {
     const sFormatted = formatInputDate(balanceStartDate);
     const eFormatted = formatInputDate(balanceEndDate);
 
@@ -489,17 +484,11 @@ export default function App() {
     });
   };
 
-  const balanceTransactions = getFilteredTransactionsForBalance();
-
-  const incomeTotal = balanceTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const expenseTotal = balanceTransactions
-    .filter(t => t.type === 'expense' && !t.isDone)
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const balance = incomeTotal - expenseTotal;
+  const periodTransactions = getPeriodTransactions();
+  
+  const totalDueAmount = periodTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const doneAmount = periodTransactions.filter(t => t.isDone).reduce((sum, t) => sum + t.amount, 0);
+  const remainingOpenAmount = periodTransactions.filter(t => !t.isDone).reduce((sum, t) => sum + t.amount, 0);
 
   const getFilteredExpensesForStats = () => {
     let list = currentTransactions.filter(t => t.type === 'expense');
@@ -538,42 +527,33 @@ export default function App() {
     return { title, amount, percentage };
   }).sort((a, b) => b.amount - a.amount);
 
-  // Angepasste Farblogik für Statistik (%):
-  // < 10% = grün
-  // 10% - 19.99% = gelb
-  // 20% - 100% = rot (wird ab 20% aufwärts stufenweise dunkler)
   const getPercentageColor = (pct) => {
-    if (pct < 10) return '#10B981'; // Grün
-    if (pct < 20) return '#F59E0B'; // Gelb
+    if (pct < 10) return '#10B981';
+    if (pct < 20) return '#F59E0B';
     
-    // Ab 20% bis 100% fließend zu dunklem Rot (Hex-Werte von hellrot bis tiefes Dunkelrot)
-    // Bei 20% -> #EF4444, bei 100% -> #7F1D1D
     const ratio = Math.min((pct - 20) / 80, 1);
-    const r = Math.round(239 - ratio * (239 - 127)); // 239 -> 127
-    const g = Math.round(68 - ratio * (68 - 29));     // 68 -> 29
-    const b = Math.round(68 - ratio * (68 - 29));     // 68 -> 29
+    const r = Math.round(239 - ratio * (239 - 127));
+    const g = Math.round(68 - ratio * (68 - 29));
+    const b = Math.round(68 - ratio * (68 - 29));
     return `rgb(${r}, ${g}, ${b})`;
   };
 
   const getFilteredData = () => {
     let list = [];
     if (activeTab === 'expenses') {
-      list = currentTransactions.filter(t => t.type === 'expense' && !t.isDone);
+      list = currentTransactions.filter(t => !t.isDone);
       
-      // Sortierung für offene Ausgaben
       list.sort((a, b) => {
         if (expenseSortBy === 'date') {
           const numA = dateToNumber(a.dueDate) || 0;
           const numB = dateToNumber(b.dueDate) || 0;
-          return numA - numB; // Nächstes Datum zuerst
+          return numA - numB;
         } else {
-          return a.title.localeCompare(b.title); // Nach Beschreibung (Alphabetisch)
+          return a.title.localeCompare(b.title);
         }
       });
-    } else if (activeTab === 'incomes') {
-      list = currentTransactions.filter(t => t.type === 'income');
     } else if (activeTab === 'done') {
-      list = currentTransactions.filter(t => t.type === 'expense' && t.isDone);
+      list = currentTransactions.filter(t => t.isDone);
     }
 
     if (searchQuery.trim() !== '') {
@@ -589,7 +569,6 @@ export default function App() {
     text: darkMode ? '#F8FAFC' : '#0F172A',
     subText: darkMode ? '#94A3B8' : '#64748B',
     accent: '#3B82F6',
-    income: '#10B981',
     expense: '#EF4444',
     border: darkMode ? '#334155' : '#E2E8F0',
     warning: '#F59E0B',
@@ -667,12 +646,6 @@ export default function App() {
               <Text style={[styles.tabText, activeTab === 'expenses' && { color: '#FFF' }]}>Ausgaben</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'incomes' && { backgroundColor: theme.accent }]}
-              onPress={() => { setActiveTab('incomes'); setSearchQuery(''); }}
-            >
-              <Text style={[styles.tabText, activeTab === 'incomes' && { color: '#FFF' }]}>Einnahmen</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.tabButton, activeTab === 'done' && { backgroundColor: theme.accent }]}
               onPress={() => { setActiveTab('done'); setSearchQuery(''); }}
             >
@@ -683,11 +656,11 @@ export default function App() {
           {/* Ansicht für den 'Neu'-Tab */}
           {activeTab === 'new' && (
             <>
-              {/* Saldo Zeitraum-Filter */}
+              {/* Zeitraum-Filter für Gesamtausgaben */}
               <View style={[styles.statsFilterCard, { backgroundColor: theme.cardBg, borderColor: theme.border, marginHorizontal: 20 }]}>
                 <View style={styles.statsFilterHeaderRow}>
                   <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>
-                    Saldo-Zeitraum: {isBalanceFilteredManually ? 'Manuell' : 'Aktueller Monat'}
+                    Zeitraum: {isBalanceFilteredManually ? 'Manuell' : 'Aktueller Monat'}
                   </Text>
                   {isBalanceFilteredManually && (
                     <TouchableOpacity onPress={() => { setBalanceStartDate(''); setBalanceEndDate(''); }}>
@@ -718,42 +691,30 @@ export default function App() {
                 </View>
               </View>
 
+              {/* Gesamtsaldo Card mit Fällig, Erledigt und Rest Offen */}
               <View style={[styles.summaryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-                <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamtsaldo ({activeProfile})</Text>
-                <Text style={[styles.balanceText, { color: balance >= 0 ? theme.income : theme.expense }]}>
-                  {balance < 0 ? '-' : ''}{formatCurrency(balance)}
+                <Text style={[styles.summaryLabel, { color: theme.subText }]}>Gesamt Fällig ({activeProfile})</Text>
+                <Text style={[styles.balanceText, { color: theme.text }]}>
+                  {formatCurrency(totalDueAmount)}
                 </Text>
+
+                <View style={[styles.dividerFull, { backgroundColor: theme.border, marginVertical: 12 }]} />
 
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryItem}>
-                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>Einnahmen</Text>
-                    <Text style={[styles.incomeText, { color: theme.income }]}>+{formatCurrency(incomeTotal)}</Text>
+                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>✓ Erledigt</Text>
+                    <Text style={[styles.incomeText, { color: '#10B981' }]}>{formatCurrency(doneAmount)}</Text>
                   </View>
                   <View style={styles.divider} />
                   <View style={styles.summaryItem}>
-                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>Ausgaben</Text>
-                    <Text style={[styles.expenseText, { color: theme.expense }]}>-{formatCurrency(expenseTotal)}</Text>
+                    <Text style={[styles.summaryItemLabel, { color: theme.subText }]}>⏳ Noch Offen</Text>
+                    <Text style={[styles.expenseText, { color: theme.expense }]}>{formatCurrency(remainingOpenAmount)}</Text>
                   </View>
                 </View>
               </View>
 
               <View style={[styles.formCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}>
-                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 10 }]}>Eintrag erfassen ({activeProfile})</Text>
-                
-                <View style={styles.typeSelector}>
-                  <TouchableOpacity
-                    style={[styles.typeButton, type === 'expense' && { backgroundColor: theme.expense }]}
-                    onPress={() => setType('expense')}
-                  >
-                    <Text style={[styles.typeButtonText, type === 'expense' && styles.activeTypeText]}>Ausgabe</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.typeButton, type === 'income' && { backgroundColor: theme.income }]}
-                    onPress={() => setType('income')}
-                  >
-                    <Text style={[styles.typeButtonText, type === 'income' && styles.activeTypeText]}>Einnahme</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 10 }]}>Ausgabe erfassen ({activeProfile})</Text>
 
                 <TextInput
                   style={[styles.input, { color: theme.text, borderColor: theme.border }]}
@@ -850,7 +811,7 @@ export default function App() {
 
                 <TouchableOpacity style={[styles.addButton, { backgroundColor: theme.accent }]} onPress={addTransaction}>
                   <Text style={styles.addButtonText}>
-                    {isRecurring ? 'Serieneinträge Erstellen' : 'Eintrag Hinzufügen'}
+                    {isRecurring ? 'Serieneinträge Erstellen' : 'Ausgabe Hinzufügen'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -934,11 +895,9 @@ export default function App() {
             <View style={styles.listContainer}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 {activeTab === 'expenses' && 'Offene Ausgaben'}
-                {activeTab === 'incomes' && 'Einnahmen'}
                 {activeTab === 'done' && 'Erledigte Ausgaben'} ({activeProfile})
               </Text>
 
-              {/* Sortier-Optionen nur im Ausgaben-Tab anzeigen */}
               {activeTab === 'expenses' && (
                 <View style={styles.sortBarContainer}>
                   <Text style={{ color: theme.subText, fontSize: 12, alignSelf: 'center', marginRight: 6 }}>Sortieren nach:</Text>
@@ -1013,26 +972,19 @@ export default function App() {
                       </Text>
                     </TouchableOpacity>
 
-                    <Text
-                      style={[
-                        styles.transAmount,
-                        { color: item.type === 'income' ? theme.income : theme.expense }
-                      ]}
-                    >
-                      {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
+                    <Text style={[styles.transAmount, { color: theme.expense }]}>
+                      -{formatCurrency(item.amount)}
                     </Text>
 
-                    {item.type === 'expense' && (
-                      <TouchableOpacity
-                        style={[
-                          styles.doneButton,
-                          { backgroundColor: item.isDone ? theme.accent : theme.income }
-                        ]}
-                        onPress={() => toggleDone(item.id)}
-                      >
-                        <Text style={styles.doneButtonText}>{item.isDone ? '↩ Rückgängig' : '✓ Erledigt'}</Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.doneButton,
+                        { backgroundColor: item.isDone ? theme.accent : '#10B981' }
+                      ]}
+                      onPress={() => toggleDone(item.id)}
+                    >
+                      <Text style={styles.doneButtonText}>{item.isDone ? '↩ Rückgängig' : '✓ Erledigt'}</Text>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.deleteButton}
@@ -1052,22 +1004,7 @@ export default function App() {
       <Modal visible={editModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Eintrag Bearbeiten</Text>
-
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                style={[styles.typeButton, editType === 'expense' && { backgroundColor: theme.expense }]}
-                onPress={() => setEditType('expense')}
-              >
-                <Text style={[styles.typeButtonText, editType === 'expense' && styles.activeTypeText]}>Ausgabe</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeButton, editType === 'income' && { backgroundColor: theme.income }]}
-                onPress={() => setEditType('income')}
-              >
-                <Text style={[styles.typeButtonText, editType === 'income' && styles.activeTypeText]}>Einnahme</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Ausgabe Bearbeiten</Text>
 
             <TextInput
               style={[styles.input, { color: theme.text, borderColor: theme.border }]}
@@ -1251,14 +1188,18 @@ export default function App() {
                 Über die obere Leiste wechselst du schnell zwischen Profilen. Neue Profile erstellst du mit „+ Neues Profil“. Über ⚙️ Einstellungen ➔ „Profile verwalten & umbenennen“ kannst du bestehende Profile jederzeit umbenennen.
               </Text>
 
-              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Gesamtsaldo & Zeitraum-Filter</Text>
+              <Text style={[styles.manualHeading, { color: theme.text }]}>2. Gesamt Fällig, Erledigt & Rest Offen</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Der Gesamtsaldo berechnet standardmäßig alle Einträge des **aktuellen Monats**. Über die Eingabefelder „Von“ und „Bis“ direkt über der Saldo-Karte kannst du einen beliebigen Zeitraum im Format DDMMJJJJ festlegen. Mit „Zurücksetzen ✕“ kehrst du zum Monatsfilter zurück.
+                Der Hauptbereich berechnet standardmäßig für den **aktuellen Monat**:{'\n'}
+                • **Gesamt Fällig:** Die Gesamtsumme aller fälligen Ausgaben.{'\n'}
+                • **✓ Erledigt:** Der Betrag der bereits abgehakten Ausgaben.{'\n'}
+                • **⏳ Noch Offen:** Der verbleibende, noch offene Restbetrag.{'\n'}
+                Über die Eingabefelder „Von“ und „Bis“ kannst du flexibel einen beliebigen Zeitraum im Format DDMMJJJJ festlegen.
               </Text>
 
               <Text style={[styles.manualHeading, { color: theme.text }]}>3. Offene Ausgaben & Sortierung</Text>
               <Text style={[styles.manualText, { color: theme.subText }]}>
-                Offene Ausgaben werden standardmäßig nach der anstehendsten Frist (Datum) sortiert. Über die Sortier-Leiste oben in der Ausgabenansicht kannst du flexibel zwischen **Frist (Datum)** und **Beschreibung** umschalten.
+                Offene Ausgaben werden standardmäßig nach der anstehendsten Frist (Datum) sortiert. Über die Sortier-Leiste kannst du flexibel zwischen **Frist (Datum)** und **Beschreibung** umschalten.
               </Text>
 
               <Text style={[styles.manualHeading, { color: theme.text }]}>4. Statistik & Prozentfarben</Text>
@@ -1346,7 +1287,6 @@ const styles = StyleSheet.create({
   balanceText: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 10,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1384,25 +1324,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 6,
-    alignItems: 'center',
-    borderRadius: 6,
-    backgroundColor: 'rgba(150,150,150,0.1)',
-  },
-  typeButtonText: {
-    color: '#94A3B8',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  activeTypeText: {
-    color: '#FFFFFF',
   },
   recurringToggleRow: {
     flexDirection: 'row',
