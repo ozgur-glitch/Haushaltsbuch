@@ -587,8 +587,13 @@ export default function App() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
+        <ScrollView 
+          contentContainerStyle={{ paddingBottom: 250 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View>
